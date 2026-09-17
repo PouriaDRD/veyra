@@ -76,12 +76,12 @@ class LocationRelation(StrEnum):
     """
     Semantic relationship between a profile and a geographic entity.
 
-    Geographic meaning must remain separate from evidence source.
+    Geographic meaning remains separate from evidence source.
 
-    For example:
+    Examples:
     - "Based in Tehran" -> CURRENT_RESIDENCE
     - "From Shiraz" -> ORIGIN
-    - a post geotag -> CONTENT_LOCATION
+    - a public post geotag -> CONTENT_LOCATION
     """
 
     UNSPECIFIED = "unspecified"
@@ -129,6 +129,21 @@ class ProfilePurpose(StrEnum):
     ORGANIZATION = "organization"
     MIXED = "mixed"
     UNKNOWN = "unknown"
+
+
+class ProfilePurposeSignalKind(StrEnum):
+    """
+    Contextual public-profile purpose signals.
+
+    These signals are not purpose facts. They contribute to the
+    PROFILE_PURPOSE hypothesis.
+    """
+
+    PERSONAL_MARKER = "personal_marker"
+    PROFESSIONAL_ROLE = "professional_role"
+    CREATOR_MARKER = "creator_marker"
+    BUSINESS_MARKER = "business_marker"
+    ORGANIZATION_MARKER = "organization_marker"
 
 
 class ActivityLevel(StrEnum):

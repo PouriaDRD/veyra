@@ -14,6 +14,7 @@ from .enums import (
     LocationRelation,
     LocationSignalKind,
     ProfilePurpose,
+    ProfilePurposeSignalKind,
     RelationshipSignalKind,
     RelationshipStatus,
 )
@@ -31,6 +32,7 @@ from .location import (
     LocationLexicon,
 )
 from .location_signals import LocationSignal
+from .profile_purpose import ProfilePurposeSignal
 from .registry import (
     HypothesisStrategyAlreadyRegisteredError,
     HypothesisStrategyNotFoundError,
@@ -74,6 +76,8 @@ __all__ = [
     "LocationSignalKind",
     "ObservationPolarity",
     "ProfilePurpose",
+    "ProfilePurposeSignal",
+    "ProfilePurposeSignalKind",
     "RelationshipSignal",
     "RelationshipSignalExtractor",
     "RelationshipSignalKind",

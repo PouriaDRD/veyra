@@ -22,6 +22,7 @@ from veyra.domain.intelligence import (
     HypothesisResult,
     HypothesisStrategyRegistry,
     LocationSignal,
+    ProfilePurposeSignal,
     RelationshipSignal,
     RelationshipSignalExtractor,
 )
@@ -31,6 +32,13 @@ from veyra.domain.intelligence.location_signal_extractor import (
 from veyra.domain.intelligence.location_strategy import (
     LIKELY_LOCATION_HYPOTHESIS_STRATEGY,
     LocationHypothesisAdapter,
+)
+from veyra.domain.intelligence.profile_purpose_signals import (
+    ProfilePurposeSignalExtractor,
+)
+from veyra.domain.intelligence.profile_purpose_strategy import (
+    PROFILE_PURPOSE_HYPOTHESIS_STRATEGY,
+    ProfilePurposeHypothesisAdapter,
 )
 from veyra.domain.intelligence.relationship_strategy import (
     RELATIONSHIP_HYPOTHESIS_STRATEGY,
@@ -53,7 +61,9 @@ class ProfileAnalysisService:
     - contextual relationship inference
     - multilingual explicit city/country extraction
     - contextual biography location signals
-    - likely-location inference through the generic hypothesis engine
+    - likely-current-location inference
+    - multilingual profile-purpose signal extraction
+    - profile-purpose inference from public biography and display name
 
     Facts, contextual signals, hypotheses, and validation findings remain
     semantically separate throughout the pipeline.
@@ -70,6 +80,8 @@ class ProfileAnalysisService:
         bio_location_extractor: BioLocationExtractor | None = None,
         bio_location_signal_extractor: BioLocationSignalExtractor | None = None,
         location_hypothesis_adapter: LocationHypothesisAdapter | None = None,
+        profile_purpose_signal_extractor: ProfilePurposeSignalExtractor | None = None,
+        profile_purpose_hypothesis_adapter: (ProfilePurposeHypothesisAdapter | None) = None,
         hypothesis_service: HypothesisEvaluationService | None = None,
         fact_resolver: FactResolver | None = None,
         adult_age_validator: AdultAgeValidator | None = None,
@@ -120,6 +132,18 @@ class ProfileAnalysisService:
             else LocationHypothesisAdapter()
         )
 
+        self._profile_purpose_signal_extractor = (
+            profile_purpose_signal_extractor
+            if profile_purpose_signal_extractor is not None
+            else ProfilePurposeSignalExtractor()
+        )
+
+        self._profile_purpose_hypothesis_adapter = (
+            profile_purpose_hypothesis_adapter
+            if profile_purpose_hypothesis_adapter is not None
+            else ProfilePurposeHypothesisAdapter()
+        )
+
         self._fact_resolver = fact_resolver if fact_resolver is not None else FactResolver()
 
         self._adult_age_validator = (
@@ -134,6 +158,7 @@ class ProfileAnalysisService:
                     (
                         RELATIONSHIP_HYPOTHESIS_STRATEGY,
                         LIKELY_LOCATION_HYPOTHESIS_STRATEGY,
+                        PROFILE_PURPOSE_HYPOTHESIS_STRATEGY,
                     )
                 )
             )
@@ -145,7 +170,12 @@ class ProfileAnalysisService:
         *,
         reference_date: date,
     ) -> ProfileAnalysisResult:
-        """Analyze a snapshot and return one explainable intelligence result."""
+        """
+        Analyze one immutable profile snapshot.
+
+        ``reference_date`` remains explicit so age-related analysis is
+        deterministic and historically reproducible.
+        """
 
         birth_year_evidence = self._extract_birth_year_evidence(
             snapshot,
@@ -209,9 +239,14 @@ class ProfileAnalysisService:
             city_fact=city_fact,
         )
 
+        profile_purpose_observations = self._build_profile_purpose_observations(
+            snapshot=snapshot,
+        )
+
         observations = (
             *relationship_observations,
             *location_observations,
+            *profile_purpose_observations,
         )
 
         relationship_hypothesis = self._hypothesis_service.evaluate(
@@ -224,9 +259,15 @@ class ProfileAnalysisService:
             location_observations,
         )
 
+        profile_purpose_hypothesis = self._hypothesis_service.evaluate(
+            HypothesisKind.PROFILE_PURPOSE,
+            profile_purpose_observations,
+        )
+
         hypotheses: tuple[HypothesisResult, ...] = (
             relationship_hypothesis,
             location_hypothesis,
+            profile_purpose_hypothesis,
         )
 
         age_validation = self._adult_age_validator.validate(
@@ -290,7 +331,7 @@ class ProfileAnalysisService:
         *,
         kind: FactKind,
     ) -> tuple[Evidence, ...]:
-        """Extract explicit CITY or COUNTRY evidence."""
+        """Extract explicit current CITY or COUNTRY evidence."""
 
         if snapshot.bio is None:
             return ()
@@ -329,7 +370,7 @@ class ProfileAnalysisService:
         snapshot: ProfileSnapshot,
         city_fact: Fact,
     ) -> tuple[HypothesisObservation, ...]:
-        """Build likely-location hypothesis observations."""
+        """Build likely-current-location hypothesis observations."""
 
         signals: tuple[
             LocationSignal,
@@ -344,4 +385,61 @@ class ProfileAnalysisService:
         return self._location_hypothesis_adapter.combine(
             city_fact=city_fact,
             signals=signals,
+        )
+
+    def _build_profile_purpose_observations(
+        self,
+        *,
+        snapshot: ProfileSnapshot,
+    ) -> tuple[HypothesisObservation, ...]:
+        """
+        Build profile-purpose observations from public text fields.
+
+        Biography and display name are treated as separate underlying sources.
+
+        Signals extracted from the same field share one correlation key so a
+        single field containing several markers cannot artificially increase
+        overall inference confidence.
+        """
+
+        observations: list[HypothesisObservation] = []
+
+        if snapshot.display_name is not None:
+            display_name_signals = self._extract_profile_purpose_signals(
+                snapshot.display_name,
+            )
+
+            observations.extend(
+                self._profile_purpose_hypothesis_adapter.from_signals(
+                    display_name_signals,
+                    source="display_name",
+                    correlation_key=(f"profile-purpose:{snapshot.id}:display-name"),
+                )
+            )
+
+        if snapshot.bio is not None:
+            bio_signals = self._extract_profile_purpose_signals(
+                snapshot.bio,
+            )
+
+            observations.extend(
+                self._profile_purpose_hypothesis_adapter.from_signals(
+                    bio_signals,
+                    source="bio",
+                    correlation_key=(f"profile-purpose:{snapshot.id}:bio"),
+                )
+            )
+
+        return tuple(
+            observations,
+        )
+
+    def _extract_profile_purpose_signals(
+        self,
+        text: str,
+    ) -> tuple[ProfilePurposeSignal, ...]:
+        """Extract normalized profile-purpose signals from one field."""
+
+        return self._profile_purpose_signal_extractor.extract(
+            text,
         )
