@@ -68,3 +68,17 @@ def test_log_level_is_normalized(
     settings = Settings()
 
     assert settings.log_level == "DEBUG"
+
+
+def test_environment_can_be_provided_directly(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings(
+        environment=AppEnvironment.TEST,
+    )
+
+    assert settings.environment is AppEnvironment.TEST
+    assert settings.is_test is True

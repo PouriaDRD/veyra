@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .environment import AppEnvironment
@@ -38,7 +38,10 @@ class Settings(BaseSettings):
 
     environment: AppEnvironment = Field(
         default=AppEnvironment.DEVELOPMENT,
-        validation_alias="VEYRA_ENV",
+        validation_alias=AliasChoices(
+            "environment",
+            "VEYRA_ENV",
+        ),
     )
 
     debug: bool = True
@@ -55,9 +58,15 @@ class Settings(BaseSettings):
 
     log_backup_count: int = 5
 
-    @field_validator("log_level", mode="before")
+    @field_validator(
+        "log_level",
+        mode="before",
+    )
     @classmethod
-    def normalize_log_level(cls, value: object) -> object:
+    def normalize_log_level(
+        cls,
+        value: object,
+    ) -> object:
         """Normalize textual log levels before validation."""
 
         if isinstance(value, str):
@@ -87,9 +96,20 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """
-    Return the application settings singleton.
+    Return the process-level application settings.
 
-    Caching prevents repeated `.env` parsing during one process lifetime.
+    Caching prevents repeated environment and `.env` parsing during the
+    lifetime of one process.
     """
 
     return Settings()
+
+
+def clear_settings_cache() -> None:
+    """
+    Clear the cached application settings.
+
+    Primarily useful for isolated tests and controlled runtime reloading.
+    """
+
+    get_settings.cache_clear()
