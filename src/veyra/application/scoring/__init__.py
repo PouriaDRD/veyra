@@ -1,4 +1,4 @@
-"""Application scoring adapters and rule definitions."""
+"""Application scoring adapters, rules, and orchestration."""
 
 from .adapter import AnalysisScoringFeatureAdapter
 from .rules import (
@@ -7,6 +7,7 @@ from .rules import (
     FactValueScoringRule,
     HypothesisValueScoringRule,
 )
+from .service import ProfileScoringService
 
 __all__ = [
     "AnalysisScoringFeatureAdapter",
@@ -14,4 +15,5 @@ __all__ = [
     "EducationInstitutionScoringRule",
     "FactValueScoringRule",
     "HypothesisValueScoringRule",
+    "ProfileScoringService",
 ]
