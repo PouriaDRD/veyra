@@ -20,11 +20,30 @@ class UnitOfWork(Protocol):
     technology without affecting application code.
     """
 
-    profiles: ProfileRepository
-    snapshots: SnapshotRepository
-    searches: SearchRepository
-    candidates: SearchCandidateRepository
-    media_assets: MediaAssetRepository
+    @property
+    def profiles(self) -> ProfileRepository:
+        """Return the profile repository."""
+        ...
+
+    @property
+    def snapshots(self) -> SnapshotRepository:
+        """Return the snapshot repository."""
+        ...
+
+    @property
+    def searches(self) -> SearchRepository:
+        """Return the search repository."""
+        ...
+
+    @property
+    def candidates(self) -> SearchCandidateRepository:
+        """Return the search-candidate repository."""
+        ...
+
+    @property
+    def media_assets(self) -> MediaAssetRepository:
+        """Return the media-asset repository."""
+        ...
 
     def __enter__(self) -> Self:
         """Start the Unit of Work."""
