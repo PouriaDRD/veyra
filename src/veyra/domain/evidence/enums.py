@@ -69,6 +69,13 @@ class FactStatus(StrEnum):
     CONFLICTED = "conflicted"
 
 
+class FactCardinality(StrEnum):
+    """Whether one fact kind resolves to one value or multiple values."""
+
+    SINGLE = "single"
+    MULTIPLE = "multiple"
+
+
 class ConfidenceLevel(StrEnum):
     """Human-readable confidence band."""
 

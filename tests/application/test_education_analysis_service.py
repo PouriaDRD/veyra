@@ -46,7 +46,8 @@ def test_english_education_fact_is_supported() -> None:
     )
 
     assert fact.status is FactStatus.SUPPORTED
-    assert fact.value == "bachelor:computer science"
+    assert fact.value is None
+    assert fact.values == ("bachelor:computer science",)
     assert fact.confidence == 0.97
 
 
@@ -56,7 +57,8 @@ def test_persian_education_fact_is_supported() -> None:
     )
 
     assert fact.status is FactStatus.SUPPORTED
-    assert fact.value == "master:علوم داده"
+    assert fact.value is None
+    assert fact.values == ("master:علوم داده",)
 
 
 def test_unknown_education_creates_unknown_fact() -> None:
@@ -66,6 +68,7 @@ def test_unknown_education_creates_unknown_fact() -> None:
 
     assert fact.status is FactStatus.UNKNOWN
     assert fact.value is None
+    assert fact.values == ()
     assert fact.confidence == 0
     assert fact.evidence == ()
 
@@ -76,15 +79,20 @@ def test_field_without_degree_does_not_create_education_fact() -> None:
     )
 
     assert fact.status is FactStatus.UNKNOWN
+    assert fact.values == ()
 
 
-def test_two_distinct_explicit_education_values_conflict() -> None:
+def test_two_distinct_explicit_education_values_are_supported_together() -> None:
     fact = education_fact_for(
         bio="BSc Computer Science | MSc Data Science",
     )
 
-    assert fact.status is FactStatus.CONFLICTED
+    assert fact.status is FactStatus.SUPPORTED
     assert fact.value is None
+    assert fact.values == (
+        "bachelor:computer science",
+        "master:data science",
+    )
 
     assert {item.normalized_value for item in fact.evidence} == {
         "bachelor:computer science",
@@ -92,13 +100,14 @@ def test_two_distinct_explicit_education_values_conflict() -> None:
     }
 
 
-def test_duplicate_same_education_value_does_not_conflict() -> None:
+def test_duplicate_same_education_value_is_deduplicated() -> None:
     fact = education_fact_for(
         bio="BSc Computer Science | BSc Computer Science",
     )
 
     assert fact.status is FactStatus.SUPPORTED
-    assert fact.value == "bachelor:computer science"
+    assert fact.value is None
+    assert fact.values == ("bachelor:computer science",)
     assert len(fact.evidence) == 1
 
 
@@ -129,10 +138,10 @@ def test_education_and_institution_are_separate_facts() -> None:
     institution = next(fact for fact in result.facts if fact.kind is FactKind.INSTITUTION)
 
     assert education.status is FactStatus.SUPPORTED
-    assert education.value == "bachelor:computer science"
+    assert education.values == ("bachelor:computer science",)
 
     assert institution.status is FactStatus.SUPPORTED
-    assert institution.value == "mit"
+    assert institution.values == ("mit",)
 
 
 def test_education_and_occupation_are_separate_facts() -> None:
@@ -151,7 +160,7 @@ def test_education_and_occupation_are_separate_facts() -> None:
     assert occupation.value == "software engineer"
 
     assert education.status is FactStatus.SUPPORTED
-    assert education.value == "master:data science"
+    assert education.values == ("master:data science",)
 
 
 def test_result_contains_education_fact_even_when_unknown() -> None:
@@ -165,6 +174,7 @@ def test_result_contains_education_fact_even_when_unknown() -> None:
     education = next(fact for fact in result.facts if fact.kind is FactKind.EDUCATION)
 
     assert education.status is FactStatus.UNKNOWN
+    assert education.values == ()
 
 
 def test_education_does_not_create_new_hypothesis_kind() -> None:

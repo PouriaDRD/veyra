@@ -11,9 +11,11 @@ from veyra.domain.intelligence import (
 )
 
 from .birth_year import BirthYear
+from .cardinality import fact_cardinality_for
 from .enums import (
     ConfidenceLevel,
     EvidenceSource,
+    FactCardinality,
     FactKind,
     FactStatus,
 )
@@ -112,6 +114,9 @@ class Fact:
     """
     Resolved normalized fact derived from one or more evidence items.
 
+    Scalar facts expose their resolved value through ``value``.
+    Multi-value facts expose their resolved values through ``values``.
+
     Facts remain explainable because supporting evidence is retained.
     """
 
@@ -120,6 +125,8 @@ class Fact:
     confidence: float
 
     value: FactValue | None = None
+
+    values: tuple[FactValue, ...] = ()
 
     evidence: tuple[Evidence, ...] = ()
 
@@ -139,10 +146,19 @@ class Fact:
                 "confidence must be between 0 and 1.",
             )
 
+        cardinality = fact_cardinality_for(
+            self.kind,
+        )
+
         if self.status is FactStatus.UNKNOWN:
             if self.value is not None:
                 raise ValueError(
                     "unknown fact must not have a value.",
+                )
+
+            if self.values:
+                raise ValueError(
+                    "unknown fact must not have values.",
                 )
 
             if self.evidence:
@@ -156,10 +172,32 @@ class Fact:
                 )
 
         elif self.status is FactStatus.SUPPORTED:
-            if self.value is None:
-                raise ValueError(
-                    "supported fact must have a value.",
-                )
+            if cardinality is FactCardinality.SINGLE:
+                if self.value is None:
+                    raise ValueError(
+                        "supported scalar fact must have a value.",
+                    )
+
+                if self.values:
+                    raise ValueError(
+                        "supported scalar fact must not have multiple values.",
+                    )
+
+            else:
+                if self.value is not None:
+                    raise ValueError(
+                        "supported multi-value fact must not have a scalar value.",
+                    )
+
+                if not self.values:
+                    raise ValueError(
+                        "supported multi-value fact must contain values.",
+                    )
+
+                if len(set(self.values)) != len(self.values):
+                    raise ValueError(
+                        "supported multi-value fact values must be unique.",
+                    )
 
             if not self.evidence:
                 raise ValueError(
@@ -170,6 +208,11 @@ class Fact:
             if self.value is not None:
                 raise ValueError(
                     "conflicted fact must not have a resolved value.",
+                )
+
+            if self.values:
+                raise ValueError(
+                    "conflicted fact must not have resolved values.",
                 )
 
             if len(self.evidence) < 2:
@@ -184,6 +227,14 @@ class Fact:
                 self.resolved_at,
                 field_name="resolved_at",
             ),
+        )
+
+    @property
+    def cardinality(self) -> FactCardinality:
+        """Return this fact kind's cardinality policy."""
+
+        return fact_cardinality_for(
+            self.kind,
         )
 
     @property

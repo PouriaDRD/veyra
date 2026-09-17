@@ -1,6 +1,7 @@
 """Veyra evidence domain."""
 
 from .birth_year import BirthYear, CalendarSystem
+from .cardinality import fact_cardinality_for
 from .confidence import (
     combine_confidences,
     conflict_confidence,
@@ -9,6 +10,7 @@ from .entities import Evidence, Fact, FactValue
 from .enums import (
     ConfidenceLevel,
     EvidenceSource,
+    FactCardinality,
     FactKind,
     FactStatus,
 )
@@ -47,6 +49,7 @@ __all__ = [
     "Evidence",
     "EvidenceSource",
     "Fact",
+    "FactCardinality",
     "FactKind",
     "FactResolver",
     "FactStatus",
@@ -58,5 +61,6 @@ __all__ = [
     "UsernameBirthYearExtractor",
     "combine_confidences",
     "conflict_confidence",
+    "fact_cardinality_for",
     "normalize_digits",
 ]
