@@ -112,14 +112,14 @@ class _EducationMatch:
 # ============================================================
 
 
-_ENGLISH_EDUCATION_PATTERNS: tuple[
+_ENGLISH_ABBREVIATION_FIELD_PATTERNS: tuple[
     tuple[EducationLevel, re.Pattern[str]],
     ...,
 ] = (
     (
         EducationLevel.DOCTORATE,
         re.compile(
-            rf"\b(?:ph\.?\s*d\.?|doctorate|doctoral degree)"
+            rf"\b(?:ph\.?\s*d\.?|dphil)"
             rf"(?:\s+(?:in|of))?\s+{_EDUCATION_FIELD_VALUE}"
             rf"(?=$|[{_STOP_CHARS}])",
             re.IGNORECASE,
@@ -128,7 +128,7 @@ _ENGLISH_EDUCATION_PATTERNS: tuple[
     (
         EducationLevel.MASTER,
         re.compile(
-            rf"\b(?:m\.?\s*sc\.?|m\.?\s*s\.?|m\.?\s*a\.?|master'?s?|master degree)"
+            rf"\b(?:m\.?\s*sc\.?|m\.?\s*s\.?|m\.?\s*a\.?|m\.?\s*eng\.?)"
             rf"(?:\s+(?:in|of))?\s+{_EDUCATION_FIELD_VALUE}"
             rf"(?=$|[{_STOP_CHARS}])",
             re.IGNORECASE,
@@ -137,18 +137,47 @@ _ENGLISH_EDUCATION_PATTERNS: tuple[
     (
         EducationLevel.BACHELOR,
         re.compile(
-            rf"\b(?:b\.?\s*sc\.?|b\.?\s*s\.?|b\.?\s*a\.?|bachelor'?s?|bachelor degree)"
+            rf"\b(?:b\.?\s*sc\.?|b\.?\s*s\.?|b\.?\s*a\.?|b\.?\s*eng\.?)"
             rf"(?:\s+(?:in|of))?\s+{_EDUCATION_FIELD_VALUE}"
             rf"(?=$|[{_STOP_CHARS}])",
+            re.IGNORECASE,
+        ),
+    ),
+)
+
+_ENGLISH_WORD_DEGREE_FIELD_PATTERNS: tuple[
+    tuple[EducationLevel, re.Pattern[str]],
+    ...,
+] = (
+    (
+        EducationLevel.DOCTORATE,
+        re.compile(
+            rf"\b(?:doctorate|doctoral\s+degree)\s+(?:in|of)\s+"
+            rf"{_EDUCATION_FIELD_VALUE}(?=$|[{_STOP_CHARS}])",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        EducationLevel.MASTER,
+        re.compile(
+            rf"\b(?:master'?s?|master\s+degree)\s+(?:in|of)\s+"
+            rf"{_EDUCATION_FIELD_VALUE}(?=$|[{_STOP_CHARS}])",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        EducationLevel.BACHELOR,
+        re.compile(
+            rf"\b(?:bachelor'?s?|bachelor\s+degree)\s+(?:in|of)\s+"
+            rf"{_EDUCATION_FIELD_VALUE}(?=$|[{_STOP_CHARS}])",
             re.IGNORECASE,
         ),
     ),
     (
         EducationLevel.ASSOCIATE,
         re.compile(
-            rf"\b(?:associate degree|associate'?s?)"
-            rf"(?:\s+(?:in|of))?\s+{_EDUCATION_FIELD_VALUE}"
-            rf"(?=$|[{_STOP_CHARS}])",
+            rf"\b(?:associate'?s?|associate\s+degree)\s+(?:in|of)\s+"
+            rf"{_EDUCATION_FIELD_VALUE}(?=$|[{_STOP_CHARS}])",
             re.IGNORECASE,
         ),
     ),
@@ -190,6 +219,144 @@ _PERSIAN_EDUCATION_PATTERNS: tuple[
     ),
 )
 
+_DEGREE_ONLY_SEGMENTS: dict[str, EducationCredential] = {
+    "associate": EducationCredential(
+        EducationLevel.ASSOCIATE,
+    ),
+    "associate degree": EducationCredential(
+        EducationLevel.ASSOCIATE,
+    ),
+    "bachelor": EducationCredential(
+        EducationLevel.BACHELOR,
+    ),
+    "bachelor's": EducationCredential(
+        EducationLevel.BACHELOR,
+    ),
+    "bachelor degree": EducationCredential(
+        EducationLevel.BACHELOR,
+    ),
+    "bsc": EducationCredential(
+        EducationLevel.BACHELOR,
+    ),
+    "b.sc": EducationCredential(
+        EducationLevel.BACHELOR,
+    ),
+    "b.sc.": EducationCredential(
+        EducationLevel.BACHELOR,
+    ),
+    "beng": EducationCredential(
+        EducationLevel.BACHELOR,
+        "engineering",
+    ),
+    "b.eng": EducationCredential(
+        EducationLevel.BACHELOR,
+        "engineering",
+    ),
+    "b.eng.": EducationCredential(
+        EducationLevel.BACHELOR,
+        "engineering",
+    ),
+    "bba": EducationCredential(
+        EducationLevel.BACHELOR,
+        "business administration",
+    ),
+    "master": EducationCredential(
+        EducationLevel.MASTER,
+    ),
+    "master's": EducationCredential(
+        EducationLevel.MASTER,
+    ),
+    "master degree": EducationCredential(
+        EducationLevel.MASTER,
+    ),
+    "msc": EducationCredential(
+        EducationLevel.MASTER,
+    ),
+    "m.sc": EducationCredential(
+        EducationLevel.MASTER,
+    ),
+    "m.sc.": EducationCredential(
+        EducationLevel.MASTER,
+    ),
+    "meng": EducationCredential(
+        EducationLevel.MASTER,
+        "engineering",
+    ),
+    "m.eng": EducationCredential(
+        EducationLevel.MASTER,
+        "engineering",
+    ),
+    "m.eng.": EducationCredential(
+        EducationLevel.MASTER,
+        "engineering",
+    ),
+    "mba": EducationCredential(
+        EducationLevel.MASTER,
+        "business administration",
+    ),
+    "doctorate": EducationCredential(
+        EducationLevel.DOCTORATE,
+    ),
+    "doctoral degree": EducationCredential(
+        EducationLevel.DOCTORATE,
+    ),
+    "phd": EducationCredential(
+        EducationLevel.DOCTORATE,
+    ),
+    "ph.d": EducationCredential(
+        EducationLevel.DOCTORATE,
+    ),
+    "ph.d.": EducationCredential(
+        EducationLevel.DOCTORATE,
+    ),
+    "dphil": EducationCredential(
+        EducationLevel.DOCTORATE,
+    ),
+    "کاردانی": EducationCredential(
+        EducationLevel.ASSOCIATE,
+    ),
+    "فوق دیپلم": EducationCredential(
+        EducationLevel.ASSOCIATE,
+    ),
+    "کارشناسی": EducationCredential(
+        EducationLevel.BACHELOR,
+    ),
+    "لیسانس": EducationCredential(
+        EducationLevel.BACHELOR,
+    ),
+    "کارشناسی ارشد": EducationCredential(
+        EducationLevel.MASTER,
+    ),
+    "فوق لیسانس": EducationCredential(
+        EducationLevel.MASTER,
+    ),
+    "دکتری": EducationCredential(
+        EducationLevel.DOCTORATE,
+    ),
+    "دکترا": EducationCredential(
+        EducationLevel.DOCTORATE,
+    ),
+}
+
+_DEGREE_ONLY_WITH_INSTITUTION_EN = re.compile(
+    r"^(?P<degree>"
+    r"(?:b\.?\s*sc\.?|b\.?\s*eng\.?|bba|"
+    r"m\.?\s*sc\.?|m\.?\s*eng\.?|mba|"
+    r"ph\.?\s*d\.?|dphil|"
+    r"bachelor(?:'s|\s+degree)?|"
+    r"master(?:'s|\s+degree)?|"
+    r"doctorate|doctoral\s+degree|associate\s+degree)"
+    r")\s+(?:at|from)\s+.+$",
+    re.IGNORECASE,
+)
+
+_DEGREE_ONLY_WITH_INSTITUTION_FA = re.compile(
+    r"^(?P<degree>"
+    r"(?:کاردانی|فوق\s+دیپلم|کارشناسی(?:\s+ارشد)?|"
+    r"لیسانس|فوق\s+لیسانس|دکتری|دکترا)"
+    r")\s+(?:در|از)\s+(?:دانشگاه|دانشکده|موسسه|مؤسسه)\s+.+$",
+)
+
 
 _FIELD_TRAILING_INSTITUTION_EN = re.compile(
     r"\s+(?:at|from)\s+.+$",
@@ -198,6 +365,15 @@ _FIELD_TRAILING_INSTITUTION_EN = re.compile(
 
 _FIELD_TRAILING_INSTITUTION_FA = re.compile(
     r"\s+(?:در|از)\s+(?:دانشگاه|دانشکده|موسسه|مؤسسه)\s+.+$",
+)
+
+_FIELD_ONLY_INSTITUTION_EN = re.compile(
+    r"^(?:at|from)\s+.+$",
+    re.IGNORECASE,
+)
+
+_FIELD_ONLY_INSTITUTION_FA = re.compile(
+    r"^(?:در|از)\s+(?:دانشگاه|دانشکده|موسسه|مؤسسه)\s+.+$",
 )
 
 _FIELD_LEADING_CONNECTOR = re.compile(
@@ -210,6 +386,11 @@ _FIELD_NOISE_VALUES = frozenset(
         "student",
         "graduate",
         "degree",
+        "party",
+        "pad",
+        "chef",
+        "ceremonies",
+        "none",
         "دانشجو",
         "فارغ التحصیل",
         "فارغ‌التحصیل",
@@ -226,6 +407,16 @@ def _clean_education_field(
     normalized = normalize_text(
         field,
     ).strip(" .:-/")
+
+    if _FIELD_ONLY_INSTITUTION_EN.fullmatch(
+        normalized,
+    ):
+        return ""
+
+    if _FIELD_ONLY_INSTITUTION_FA.fullmatch(
+        normalized,
+    ):
+        return ""
 
     normalized = _FIELD_LEADING_CONNECTOR.sub(
         "",
@@ -263,6 +454,85 @@ def _is_valid_education_field(
         return False
 
     return any(character.isalpha() for character in field)
+
+
+def _degree_only_credential_for_segment(
+    segment: str,
+) -> EducationCredential | None:
+    """Return a safe degree-only credential for one normalized segment."""
+
+    cleaned = normalize_text(
+        segment,
+    ).strip(" .:-/")
+
+    direct = _DEGREE_ONLY_SEGMENTS.get(
+        cleaned,
+    )
+    if direct is not None:
+        return direct
+
+    english_match = _DEGREE_ONLY_WITH_INSTITUTION_EN.fullmatch(
+        cleaned,
+    )
+    if english_match is not None:
+        degree = normalize_text(
+            english_match.group(
+                "degree",
+            )
+        ).replace(" ", "")
+        degree = degree.strip(".")
+
+        if degree in {"bsc", "bachelor", "bachelor's", "bachelordegree"}:
+            return EducationCredential(
+                EducationLevel.BACHELOR,
+            )
+        if degree in {"beng"}:
+            return EducationCredential(
+                EducationLevel.BACHELOR,
+                "engineering",
+            )
+        if degree == "bba":
+            return EducationCredential(
+                EducationLevel.BACHELOR,
+                "business administration",
+            )
+        if degree in {"msc", "master", "master's", "masterdegree"}:
+            return EducationCredential(
+                EducationLevel.MASTER,
+            )
+        if degree == "meng":
+            return EducationCredential(
+                EducationLevel.MASTER,
+                "engineering",
+            )
+        if degree == "mba":
+            return EducationCredential(
+                EducationLevel.MASTER,
+                "business administration",
+            )
+        if degree in {"phd", "dphil", "doctorate", "doctoraldegree"}:
+            return EducationCredential(
+                EducationLevel.DOCTORATE,
+            )
+        if degree == "associatedegree":
+            return EducationCredential(
+                EducationLevel.ASSOCIATE,
+            )
+
+    persian_match = _DEGREE_ONLY_WITH_INSTITUTION_FA.fullmatch(
+        cleaned,
+    )
+    if persian_match is not None:
+        degree = normalize_text(
+            persian_match.group(
+                "degree",
+            )
+        )
+        return _DEGREE_ONLY_SEGMENTS.get(
+            degree,
+        )
+
+    return None
 
 
 def _select_specific_education_matches(
@@ -313,14 +583,15 @@ def _extract_education_credentials(
     matches: list[_EducationMatch] = []
 
     for level, pattern in (
-        *_ENGLISH_EDUCATION_PATTERNS,
+        *_ENGLISH_ABBREVIATION_FIELD_PATTERNS,
+        *_ENGLISH_WORD_DEGREE_FIELD_PATTERNS,
         *_PERSIAN_EDUCATION_PATTERNS,
     ):
-        for match in pattern.finditer(
+        for regex_match in pattern.finditer(
             text,
         ):
             field = _clean_education_field(
-                match.group(
+                regex_match.group(
                     "field",
                 )
             )
@@ -336,8 +607,8 @@ def _extract_education_credentials(
                         level=level,
                         field=field,
                     ),
-                    start=match.start(),
-                    end=match.end(),
+                    start=regex_match.start(),
+                    end=regex_match.end(),
                 )
             )
 
@@ -353,6 +624,24 @@ def _extract_education_credentials(
 
         credentials.append(
             selected_match.credential,
+        )
+
+    for segment in re.split(
+        rf"[{_STOP_CHARS}]",
+        text,
+    ):
+        degree_only = _degree_only_credential_for_segment(
+            segment,
+        )
+
+        if degree_only is None:
+            continue
+
+        if degree_only in credentials:
+            continue
+
+        credentials.append(
+            degree_only,
         )
 
     return tuple(
@@ -390,6 +679,19 @@ _ENGLISH_EDUCATED_AT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_ENGLISH_DEGREE_INSTITUTION_PATTERN = re.compile(
+    rf"\b(?:"
+    rf"b\.?\s*sc\.?|b\.?\s*s\.?|b\.?\s*a\.?|b\.?\s*eng\.?|bba|"
+    rf"m\.?\s*sc\.?|m\.?\s*s\.?|m\.?\s*a\.?|m\.?\s*eng\.?|mba|"
+    rf"ph\.?\s*d\.?|dphil|"
+    rf"bachelor(?:'s|\s+degree)?|master(?:'s|\s+degree)?|"
+    rf"doctorate|doctoral\s+degree|associate\s+degree"
+    rf")\b"
+    rf"[^\n|•;,،]{{0,100}}?\s+(?:at|from)\s+{_INSTITUTION_VALUE}"
+    rf"(?=$|[{_STOP_CHARS}])",
+    re.IGNORECASE,
+)
+
 _PERSIAN_STUDENT_OF_PATTERN = re.compile(
     rf"(?:دانشجو|دانشجوی)\s+(?:در\s+)?{_INSTITUTION_VALUE}"
     rf"(?=$|[{_STOP_CHARS}])",
@@ -409,6 +711,16 @@ _PERSIAN_GRADUATE_OF_PATTERN = re.compile(
 
 _PERSIAN_EDUCATED_AT_PATTERN = re.compile(
     rf"(?:تحصیل\s+در|تحصیل\s+کرده\s+در)\s+"
+    rf"{_INSTITUTION_VALUE}"
+    rf"(?=$|[{_STOP_CHARS}])",
+)
+
+_PERSIAN_DEGREE_INSTITUTION_PATTERN = re.compile(
+    rf"(?:"
+    rf"کاردانی|فوق\s+دیپلم|کارشناسی(?:\s+ارشد)?|لیسانس|"
+    rf"فوق\s+لیسانس|دکتری|دکترا"
+    rf")"
+    rf"[^\n|•;,،]{{0,100}}?\s+(?:در|از)\s+"
     rf"{_INSTITUTION_VALUE}"
     rf"(?=$|[{_STOP_CHARS}])",
 )
@@ -546,10 +858,12 @@ def _extract_institution_values(
         _ENGLISH_STUDYING_AT_PATTERN,
         _ENGLISH_GRADUATE_OF_PATTERN,
         _ENGLISH_EDUCATED_AT_PATTERN,
+        _ENGLISH_DEGREE_INSTITUTION_PATTERN,
         _PERSIAN_STUDENT_OF_PATTERN,
         _PERSIAN_STUDYING_AT_PATTERN,
         _PERSIAN_GRADUATE_OF_PATTERN,
         _PERSIAN_EDUCATED_AT_PATTERN,
+        _PERSIAN_DEGREE_INSTITUTION_PATTERN,
     )
 
     values: list[str] = []
@@ -603,6 +917,11 @@ class BioEducationExtractor:
     The extractor requires a recognizable education level. Plain subjects,
     occupations, institutions, and generic student claims do not create
     EDUCATION evidence.
+
+    Degree-only claims are accepted only when they are isolated profile
+    segments or are directly attached to an explicit education institution.
+    Ambiguous short forms such as bare ``BA`` and ``MA`` are intentionally not
+    accepted as degree-only claims.
 
     Field text remains in its source language and is not translated.
     """
