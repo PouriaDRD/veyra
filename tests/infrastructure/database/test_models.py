@@ -26,6 +26,7 @@ def test_core_tables_are_registered_and_created(
             "media_assets",
             "profile_snapshots",
             "profiles",
+            "score_snapshots",
             "search_candidates",
             "searches",
         }

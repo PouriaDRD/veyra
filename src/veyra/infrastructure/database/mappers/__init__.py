@@ -2,6 +2,7 @@
 
 from .media import media_asset_to_domain, media_asset_to_model
 from .profile import profile_to_domain, profile_to_model
+from .scoring import score_snapshot_to_domain, score_snapshot_to_model
 from .search import (
     candidate_to_domain,
     candidate_to_model,
@@ -17,6 +18,8 @@ __all__ = [
     "media_asset_to_model",
     "profile_to_domain",
     "profile_to_model",
+    "score_snapshot_to_domain",
+    "score_snapshot_to_model",
     "search_to_domain",
     "search_to_model",
     "snapshot_to_domain",
