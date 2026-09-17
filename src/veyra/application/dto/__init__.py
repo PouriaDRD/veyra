@@ -1,5 +1,6 @@
 """Application data-transfer objects."""
 
+from .analysis import ProfileAnalysisResult
 from .profiles import CreateProfileCommand
 from .searches import (
     AddCandidateCommand,
@@ -12,4 +13,5 @@ __all__ = [
     "CaptureSnapshotCommand",
     "CreateProfileCommand",
     "CreateSearchCommand",
+    "ProfileAnalysisResult",
 ]

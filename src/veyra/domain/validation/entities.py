@@ -1,5 +1,6 @@
 """Validation result domain entities."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
@@ -76,4 +77,30 @@ class ValidationResult:
             finding.code
             for finding in self.findings
             if finding.severity is ValidationSeverity.REJECT
+        )
+
+    def has_code(
+        self,
+        code: ValidationCode,
+    ) -> bool:
+        """Return whether one finding uses the requested code."""
+
+        return any(finding.code is code for finding in self.findings)
+
+    @classmethod
+    def combine(
+        cls,
+        results: Iterable["ValidationResult"],
+    ) -> "ValidationResult":
+        """Combine multiple validator outputs into one aggregate result."""
+
+        findings = tuple(finding for result in results for finding in result.findings)
+
+        if not findings:
+            raise ValueError(
+                "at least one validation result is required.",
+            )
+
+        return cls(
+            findings=findings,
         )

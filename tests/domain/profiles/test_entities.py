@@ -1,6 +1,6 @@
 """Tests for profile domain entities."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -31,19 +31,25 @@ def test_profile_requires_external_id() -> None:
 
 
 def test_profile_can_change_username() -> None:
-    profile = Profile(
-        platform=SocialPlatform.INSTAGRAM,
-        external_id="123",
-        username="old_name",
-    )
-
-    changed_at = datetime(
+    created_at = datetime(
         2026,
         9,
         17,
         12,
         0,
         tzinfo=UTC,
+    )
+
+    profile = Profile(
+        platform=SocialPlatform.INSTAGRAM,
+        external_id="123",
+        username="old_name",
+        created_at=created_at,
+        updated_at=created_at,
+    )
+
+    changed_at = created_at + timedelta(
+        minutes=5,
     )
 
     profile.change_username(

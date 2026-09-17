@@ -78,3 +78,78 @@ def test_validation_result_requires_findings() -> None:
         ValidationResult(
             findings=(),
         )
+
+
+def test_validation_results_can_be_combined() -> None:
+    age_result = ValidationResult(
+        findings=(
+            ValidationFinding(
+                code=ValidationCode.AGE_CONFIRMED_ADULT,
+                severity=ValidationSeverity.INFO,
+                message="Adult age confirmed.",
+                confidence=0.95,
+            ),
+        )
+    )
+
+    location_result = ValidationResult(
+        findings=(
+            ValidationFinding(
+                code=ValidationCode.LOCATION_UNCERTAIN,
+                severity=ValidationSeverity.WARNING,
+                message="Location could not be confirmed.",
+                confidence=0.4,
+            ),
+        )
+    )
+
+    result = ValidationResult.combine(
+        (
+            age_result,
+            location_result,
+        )
+    )
+
+    assert len(result.findings) == 2
+    assert result.is_accepted is True
+
+    assert result.has_code(
+        ValidationCode.AGE_CONFIRMED_ADULT,
+    )
+
+    assert result.has_code(
+        ValidationCode.LOCATION_UNCERTAIN,
+    )
+
+
+def test_combined_validation_preserves_rejections() -> None:
+    valid_result = ValidationResult(
+        findings=(
+            ValidationFinding(
+                code=ValidationCode.LOCATION_CONFIRMED,
+                severity=ValidationSeverity.INFO,
+                message="Location confirmed.",
+            ),
+        )
+    )
+
+    rejected_result = ValidationResult(
+        findings=(
+            ValidationFinding(
+                code=ValidationCode.AGE_UNCERTAIN,
+                severity=ValidationSeverity.REJECT,
+                message="Adult age could not be established.",
+            ),
+        )
+    )
+
+    result = ValidationResult.combine(
+        (
+            valid_result,
+            rejected_result,
+        )
+    )
+
+    assert result.is_accepted is False
+
+    assert result.rejection_codes == (ValidationCode.AGE_UNCERTAIN,)

@@ -5,6 +5,7 @@ from .dto import (
     CaptureSnapshotCommand,
     CreateProfileCommand,
     CreateSearchCommand,
+    ProfileAnalysisResult,
 )
 from .exceptions import (
     ApplicationError,
@@ -12,7 +13,11 @@ from .exceptions import (
     EntityNotFoundError,
     ProfileAlreadyExistsError,
 )
-from .services import ProfileService, SearchService
+from .services import (
+    ProfileAnalysisService,
+    ProfileService,
+    SearchService,
+)
 
 __all__ = [
     "AddCandidateCommand",
@@ -23,6 +28,8 @@ __all__ = [
     "CreateSearchCommand",
     "EntityNotFoundError",
     "ProfileAlreadyExistsError",
+    "ProfileAnalysisResult",
+    "ProfileAnalysisService",
     "ProfileService",
     "SearchService",
 ]
