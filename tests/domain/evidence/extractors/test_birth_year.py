@@ -74,6 +74,7 @@ def test_two_digit_username_remains_ambiguous() -> None:
 
     assert fact.status is FactStatus.CONFLICTED
     assert fact.value is None
+    assert all(item.is_ambiguous for item in evidence)
 
 
 def test_x99_remains_ambiguous() -> None:

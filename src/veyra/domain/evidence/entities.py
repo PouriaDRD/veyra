@@ -23,6 +23,9 @@ class Evidence:
     One explainable observation supporting a normalized fact.
 
     Evidence contains only explicit/publicly observable information.
+
+    Ambiguous evidence represents one possible interpretation of a raw
+    observation rather than a definitive contradictory claim.
     """
 
     source: EvidenceSource
@@ -39,6 +42,8 @@ class Evidence:
     )
 
     extractor: str | None = None
+
+    is_ambiguous: bool = False
 
     def __post_init__(self) -> None:
         """Validate and normalize evidence."""

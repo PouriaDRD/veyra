@@ -157,6 +157,7 @@ class UsernameBirthYearExtractor:
                         ),
                         confidence=self.two_digit_confidence,
                         extractor="username_birth_year_ambiguous",
+                        is_ambiguous=True,
                     ),
                     Evidence(
                         source=EvidenceSource.USERNAME,
@@ -167,6 +168,7 @@ class UsernameBirthYearExtractor:
                         ),
                         confidence=self.two_digit_confidence,
                         extractor="username_birth_year_ambiguous",
+                        is_ambiguous=True,
                     ),
                 )
             )
