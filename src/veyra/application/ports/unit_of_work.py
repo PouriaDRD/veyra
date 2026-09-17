@@ -1,0 +1,48 @@
+"""Application Unit of Work contract."""
+
+from types import TracebackType
+from typing import Protocol, Self
+
+from .repositories import (
+    MediaAssetRepository,
+    ProfileRepository,
+    SearchCandidateRepository,
+    SearchRepository,
+    SnapshotRepository,
+)
+
+
+class UnitOfWork(Protocol):
+    """
+    Transaction boundary exposed to application services.
+
+    Infrastructure implementations may use SQLAlchemy or another storage
+    technology without affecting application code.
+    """
+
+    profiles: ProfileRepository
+    snapshots: SnapshotRepository
+    searches: SearchRepository
+    candidates: SearchCandidateRepository
+    media_assets: MediaAssetRepository
+
+    def __enter__(self) -> Self:
+        """Start the Unit of Work."""
+        ...
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close the Unit of Work."""
+        ...
+
+    def commit(self) -> None:
+        """Commit the current transaction."""
+        ...
+
+    def rollback(self) -> None:
+        """Roll back the current transaction."""
+        ...

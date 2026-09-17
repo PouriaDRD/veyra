@@ -4,16 +4,22 @@ from types import TracebackType
 
 from sqlalchemy.orm import Session
 
+from .repositories import (
+    SqlAlchemyMediaAssetRepository,
+    SqlAlchemyProfileRepository,
+    SqlAlchemySearchCandidateRepository,
+    SqlAlchemySearchRepository,
+    SqlAlchemySnapshotRepository,
+)
 from .session import SessionFactory
 
 
 class SqlAlchemyUnitOfWork:
     """
-    Transaction boundary for application operations.
+    SQLAlchemy-backed application transaction boundary.
 
-    A new SQLAlchemy session is created for each Unit of Work instance.
-    Successful context-manager exits commit automatically, while failures
-    roll back the transaction.
+    Repositories share the same session so all operations performed within
+    one Unit of Work participate in the same database transaction.
     """
 
     def __init__(
@@ -22,6 +28,12 @@ class SqlAlchemyUnitOfWork:
     ) -> None:
         self._session_factory = session_factory
         self._session: Session | None = None
+
+        self.profiles: SqlAlchemyProfileRepository
+        self.snapshots: SqlAlchemySnapshotRepository
+        self.searches: SqlAlchemySearchRepository
+        self.candidates: SqlAlchemySearchCandidateRepository
+        self.media_assets: SqlAlchemyMediaAssetRepository
 
     @property
     def session(self) -> Session:
@@ -47,7 +59,29 @@ class SqlAlchemyUnitOfWork:
                 "Unit of Work is already active.",
             )
 
-        self._session = self._session_factory()
+        session = self._session_factory()
+
+        self._session = session
+
+        self.profiles = SqlAlchemyProfileRepository(
+            session,
+        )
+
+        self.snapshots = SqlAlchemySnapshotRepository(
+            session,
+        )
+
+        self.searches = SqlAlchemySearchRepository(
+            session,
+        )
+
+        self.candidates = SqlAlchemySearchCandidateRepository(
+            session,
+        )
+
+        self.media_assets = SqlAlchemyMediaAssetRepository(
+            session,
+        )
 
         return self
 
@@ -58,9 +92,9 @@ class SqlAlchemyUnitOfWork:
         traceback: TracebackType | None,
     ) -> None:
         """
-        Commit a successful transaction or roll back a failed one.
+        Commit successful work or roll back failed work.
 
-        The session is always closed after transaction completion.
+        The active session is always closed afterward.
         """
 
         if self._session is None:
@@ -76,11 +110,11 @@ class SqlAlchemyUnitOfWork:
             self._session = None
 
     def commit(self) -> None:
-        """Commit the active transaction explicitly."""
+        """Commit the active transaction."""
 
         self.session.commit()
 
     def rollback(self) -> None:
-        """Roll back the active transaction explicitly."""
+        """Roll back the active transaction."""
 
         self.session.rollback()
