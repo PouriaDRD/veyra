@@ -7,11 +7,17 @@ from veyra.application.dto import (
     CaptureSnapshotCommand,
     CreateSearchCommand,
 )
+from veyra.application.dto.analysis import ProfileAnalysisResult
 from veyra.application.exceptions import (
     CandidateAlreadyExistsError,
     EntityNotFoundError,
 )
 from veyra.application.ports import UnitOfWork
+from veyra.application.scoring import (
+    AnalysisScoringPolicy,
+    CandidateScoringResult,
+    ProfileScoringService,
+)
 from veyra.domain.searches import (
     Search,
     SearchCandidate,
@@ -26,8 +32,15 @@ class SearchService:
     def __init__(
         self,
         unit_of_work: UnitOfWork,
+        *,
+        profile_scoring_service: ProfileScoringService | None = None,
     ) -> None:
         self._unit_of_work = unit_of_work
+        self._profile_scoring_service = (
+            profile_scoring_service
+            if profile_scoring_service is not None
+            else ProfileScoringService()
+        )
 
     def create(
         self,
@@ -216,6 +229,57 @@ class SearchService:
 
             return candidate
 
+    def score_candidate_from_analysis(
+        self,
+        candidate_id: UUID,
+        analysis: ProfileAnalysisResult,
+        policy: AnalysisScoringPolicy,
+    ) -> CandidateScoringResult:
+        """
+        Score one analyzed candidate from its analysis result and policy.
+
+        The analysis must belong to the exact profile snapshot attached to the
+        candidate. Unscorable results leave the candidate in its current
+        analyzed state instead of persisting an artificial zero score.
+        """
+
+        with self._unit_of_work as unit_of_work:
+            candidate = self._get_candidate(
+                unit_of_work,
+                candidate_id,
+            )
+
+            self._validate_analysis_matches_candidate(
+                candidate,
+                analysis,
+            )
+
+            score_result = self._profile_scoring_service.score(
+                analysis,
+                policy,
+            )
+
+            if score_result.score is None:
+                return CandidateScoringResult(
+                    candidate=candidate,
+                    score_result=score_result,
+                    persisted=False,
+                )
+
+            candidate.set_score(
+                score_result.score,
+            )
+
+            unit_of_work.candidates.update(
+                candidate,
+            )
+
+            return CandidateScoringResult(
+                candidate=candidate,
+                score_result=score_result,
+                persisted=True,
+            )
+
     def filter_candidate(
         self,
         candidate_id: UUID,
@@ -238,6 +302,23 @@ class SearchService:
             )
 
             return candidate
+
+    @staticmethod
+    def _validate_analysis_matches_candidate(
+        candidate: SearchCandidate,
+        analysis: ProfileAnalysisResult,
+    ) -> None:
+        """Ensure scoring uses analysis from the candidate's attached snapshot."""
+
+        if candidate.profile_id != analysis.profile_id:
+            raise ValueError(
+                "Analysis profile does not match candidate profile.",
+            )
+
+        if candidate.snapshot_id != analysis.snapshot_id:
+            raise ValueError(
+                "Analysis snapshot does not match candidate snapshot.",
+            )
 
     @staticmethod
     def _get_search(
