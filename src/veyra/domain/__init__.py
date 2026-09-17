@@ -1,5 +1,14 @@
 """Veyra core domain."""
 
+from .evidence import (
+    ConfidenceLevel,
+    Evidence,
+    EvidenceSource,
+    Fact,
+    FactKind,
+    FactStatus,
+    FactValue,
+)
 from .media import MediaAsset, MediaKind, SnapshotMediaRole
 from .profiles import Profile, SocialPlatform
 from .searches import (
@@ -9,9 +18,22 @@ from .searches import (
     SearchStatus,
 )
 from .snapshots import ProfileSnapshot
+from .validation import (
+    ValidationCode,
+    ValidationFinding,
+    ValidationResult,
+    ValidationSeverity,
+)
 
 __all__ = [
     "CandidateStatus",
+    "ConfidenceLevel",
+    "Evidence",
+    "EvidenceSource",
+    "Fact",
+    "FactKind",
+    "FactStatus",
+    "FactValue",
     "MediaAsset",
     "MediaKind",
     "Profile",
@@ -21,4 +43,8 @@ __all__ = [
     "SearchStatus",
     "SnapshotMediaRole",
     "SocialPlatform",
+    "ValidationCode",
+    "ValidationFinding",
+    "ValidationResult",
+    "ValidationSeverity",
 ]
