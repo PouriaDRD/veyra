@@ -3,7 +3,10 @@
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
-from .enums import LocationSignalKind
+from .enums import (
+    LocationRelation,
+    LocationSignalKind,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,26 +16,30 @@ class LocationSignal:
 
     A location signal is intentionally not a fact.
 
+    ``kind`` describes where the signal came from.
+
+    ``relation`` describes what the geographic entity means relative to the
+    profile. Source and semantic relation must remain independent.
+
     Examples:
-    - a geotag on public content
-    - a bare city mention in biography text
-    - provider-reported public location metadata
-    - a city mention in a public caption
+    - BIO_MENTION + ORIGIN
+    - BIO_MENTION + CONTEXTUAL_MENTION
+    - GEOTAG + CONTENT_LOCATION
+    - PROFILE_METADATA + CURRENT_RESIDENCE
 
     ``weight`` represents semantic importance.
 
     ``confidence`` represents confidence that the source was interpreted
     correctly.
-
-    The generic hypothesis engine combines these values later.
     """
 
     kind: LocationSignalKind
-
     value: str
 
     weight: float
     confidence: float
+
+    relation: LocationRelation = LocationRelation.UNSPECIFIED
 
     context: str | None = None
 

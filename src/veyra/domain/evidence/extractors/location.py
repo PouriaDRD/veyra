@@ -1,6 +1,5 @@
-"""Explicit multilingual location extraction."""
+"""Explicit multilingual current-location extraction."""
 
-import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -15,6 +14,12 @@ from veyra.domain.intelligence.location import (
     LocationEntityKind,
     LocationLexicon,
 )
+from veyra.domain.intelligence.location_text import (
+    context_spans_for_alias,
+    find_pattern_spans,
+    location_alias_pattern,
+    overlaps_any,
+)
 
 from ..entities import Evidence
 from ..enums import (
@@ -22,118 +27,122 @@ from ..enums import (
     FactKind,
 )
 
-_EXPLICIT_LOCATION_PREFIXES = (
-    # English
-    r"\bbased\s+in\s+",
-    r"\bliving\s+in\s+",
-    r"\blive\s+in\s+",
-    r"\bfrom\s+",
-    r"\blocated\s+in\s+",
-    r"\blocation\s*:\s*",
-    # Persian
-    r"ساکن\s+",
-    r"ساکنِ\s+",
-    r"اهل\s+",
-    r"مقیم\s+",
-    r"زندگی\s+در\s+",
-    r"محل\s+زندگی\s*:?\s*",
+_CURRENT_LOCATION_CONTEXTS = (
+    # English current residence.
+    r"\bbased\s+in\s+{alias}",
+    r"\bliving\s+in\s+{alias}",
+    r"\blive\s+in\s+{alias}",
+    r"\blocated\s+in\s+{alias}",
+    r"\blocation\s*:\s*{alias}",
+    # Persian current residence.
+    r"ساکن\s+{alias}",
+    r"ساکنِ\s+{alias}",
+    r"مقیم\s+{alias}",
+    r"زندگی\s+در\s+{alias}",
+    r"محل\s+زندگی\s*:?\s*{alias}",
+    # Compact location marker.
+    r"(?:📍|🌍|🌎|🌏)\s*{alias}",
 )
 
-_PIN_PREFIX = r"(?:📍|🌍|🌎|🌏)\s*"
-
-
-_NEGATIVE_OR_NON_CURRENT_PREFIXES = (
-    # English
-    r"\bnot\s+(?:in|from|based\s+in|living\s+in)\s+",
-    r"\bformerly\s+(?:in|based\s+in|living\s+in)\s+",
-    r"\bused\s+to\s+live\s+in\s+",
-    r"\bvisited\s+",
-    r"\bvisiting\s+",
-    r"\btravel(?:ing|ling)?\s+to\s+",
-    r"\btrip\s+to\s+",
-    # Persian
-    r"ساکن\s+.+\s+نیستم",
-    r"دیگر\s+ساکن\s+",
-    r"قبلا\s+ساکن\s+",
-    r"قبلاً\s+ساکن\s+",
-    r"قبلا\s+در\s+.+\s+زندگی",
-    r"قبلاً\s+در\s+.+\s+زندگی",
-    r"سفر\s+به\s+",
-    r"مسافرت\s+به\s+",
+_BLOCKED_LOCATION_CONTEXTS = (
+    # English negative / former / travel.
+    r"\bnot\s+(?:in|from|based\s+in|living\s+in)\s+{alias}",
+    r"\bformerly\s+(?:in|based\s+in|living\s+in)\s+{alias}",
+    r"\bused\s+to\s+live\s+in\s+{alias}",
+    r"\bvisited\s+{alias}",
+    r"\bvisiting\s+{alias}",
+    r"\btravel(?:ing|ling)?\s+to\s+{alias}",
+    r"\btrip\s+to\s+{alias}",
+    # Origin is intentionally not current residence.
+    r"\bfrom\s+{alias}",
+    r"\bborn\s+in\s+{alias}",
+    # Persian negative / former / travel.
+    r"ساکن\s+{alias}\s+نیستم",
+    r"دیگر\s+ساکن\s+{alias}",
+    r"قبلا\s+ساکن\s+{alias}",
+    r"قبلاً\s+ساکن\s+{alias}",
+    r"سفر\s+به\s+{alias}",
+    r"مسافرت\s+به\s+{alias}",
+    # Persian origin.
+    r"اهل\s+{alias}",
+    r"متولد\s+{alias}",
+    r"زاده(?:ی|ٔ)?\s+{alias}",
 )
 
+_PAIR_SEPARATOR = r"\s*(?:,|،|\||/|·|•|-)\s*"
 
-def _alias_pattern(
+
+def _blocked_spans(
+    text: str,
+    *,
     alias: str,
-) -> str:
-    """
-    Build a Unicode-safe alias regex.
+) -> tuple[tuple[int, int], ...]:
+    """Return non-current context spans for one alias."""
 
-    ``re.escape`` prevents aliases from changing regex semantics.
-    Loose whitespace allows normalized multi-word aliases.
-    """
-
-    escaped = re.escape(
-        normalize_text(
-            alias,
-        )
-    )
-
-    return escaped.replace(
-        r"\ ",
-        r"\s+",
+    return context_spans_for_alias(
+        text,
+        alias=alias,
+        context_patterns=_BLOCKED_LOCATION_CONTEXTS,
     )
 
 
-def _matches_non_current_context(
+def _matches_current_explicit_context(
     text: str,
     entity: LocationEntity,
 ) -> bool:
-    """Return whether an entity mention only appears in blocked context."""
+    """
+    Return whether an entity has an unblocked current-location claim.
+
+    Matching is occurrence-aware. A historical/travel occurrence does not
+    suppress a separate valid current-location occurrence elsewhere.
+    """
 
     for alias in entity.aliases:
-        alias_pattern = _alias_pattern(
-            alias,
+        blocked = _blocked_spans(
+            text,
+            alias=alias,
         )
 
-        for prefix in _NEGATIVE_OR_NON_CURRENT_PREFIXES:
-            pattern = re.compile(
-                rf"{prefix}{alias_pattern}",
-                re.IGNORECASE,
-            )
+        current = context_spans_for_alias(
+            text,
+            alias=alias,
+            context_patterns=_CURRENT_LOCATION_CONTEXTS,
+        )
 
-            if pattern.search(text):
+        for span in current:
+            if not overlaps_any(
+                span,
+                blocked,
+            ):
                 return True
 
     return False
 
 
-def _matches_explicit_context(
+def _pair_is_blocked(
     text: str,
-    entity: LocationEntity,
+    *,
+    pair_span: tuple[int, int],
+    city_alias: str,
+    country_alias: str,
 ) -> bool:
-    """Return whether one entity appears as an explicit current location."""
+    """Return whether a compact city/country pair occurs in blocked context."""
 
-    for alias in entity.aliases:
-        alias_pattern = _alias_pattern(
-            alias,
-        )
+    blocked = (
+        *_blocked_spans(
+            text,
+            alias=city_alias,
+        ),
+        *_blocked_spans(
+            text,
+            alias=country_alias,
+        ),
+    )
 
-        explicit_patterns = (
-            *(rf"{prefix}{alias_pattern}" for prefix in _EXPLICIT_LOCATION_PREFIXES),
-            rf"{_PIN_PREFIX}{alias_pattern}",
-        )
-
-        for raw_pattern in explicit_patterns:
-            pattern = re.compile(
-                raw_pattern,
-                re.IGNORECASE,
-            )
-
-            if pattern.search(text):
-                return True
-
-    return False
+    return overlaps_any(
+        pair_span,
+        blocked,
+    )
 
 
 def _matches_compact_location_pair(
@@ -143,84 +152,73 @@ def _matches_compact_location_pair(
     lexicon: LocationLexicon,
 ) -> bool:
     """
-    Detect compact public-profile location forms such as:
+    Detect an unblocked compact city/country location form.
 
+    Examples:
     - Tehran, Iran
     - تهران، ایران
-    - Tehran | Iran
+    - Iran | Tehran
 
-    This pattern is useful because bios commonly omit prose around location.
+    Origin/travel forms such as ``From Tehran, Iran`` do not become current
+    location facts.
     """
 
-    separators = r"\s*(?:,|،|\||/|·|•|-)\s*"
+    cities = lexicon.by_kind(
+        LocationEntityKind.CITY,
+    )
 
-    if entity.kind is LocationEntityKind.CITY:
-        countries = lexicon.by_kind(
-            LocationEntityKind.COUNTRY,
-        )
+    countries = lexicon.by_kind(
+        LocationEntityKind.COUNTRY,
+    )
 
-        for city_alias in entity.aliases:
-            city_pattern = _alias_pattern(
-                city_alias,
-            )
+    for city in cities:
+        for country in countries:
+            if city.country_code is not None and country.country_code != city.country_code:
+                continue
 
-            for country in countries:
-                if entity.country_code is not None and country.country_code != entity.country_code:
-                    continue
+            if entity.kind is LocationEntityKind.CITY and entity.value != city.value:
+                continue
+
+            if entity.kind is LocationEntityKind.COUNTRY and entity.value != country.value:
+                continue
+
+            for city_alias in city.aliases:
+                city_pattern = location_alias_pattern(
+                    city_alias,
+                )
 
                 for country_alias in country.aliases:
-                    country_pattern = _alias_pattern(
+                    country_pattern = location_alias_pattern(
                         country_alias,
                     )
 
                     patterns = (
-                        rf"{city_pattern}{separators}{country_pattern}",
-                        rf"{country_pattern}{separators}{city_pattern}",
+                        (
+                            rf"{city_pattern}"
+                            rf"{_PAIR_SEPARATOR}"
+                            rf"{country_pattern}"
+                        ),
+                        (
+                            rf"{country_pattern}"
+                            rf"{_PAIR_SEPARATOR}"
+                            rf"{city_pattern}"
+                        ),
                     )
 
-                    if any(
-                        re.search(
-                            pattern,
+                    for pattern in patterns:
+                        for pair_span in find_pattern_spans(
                             text,
-                            re.IGNORECASE,
-                        )
-                        for pattern in patterns
-                    ):
-                        return True
-
-    if entity.kind is LocationEntityKind.COUNTRY:
-        cities = lexicon.by_kind(
-            LocationEntityKind.CITY,
-        )
-
-        for country_alias in entity.aliases:
-            country_pattern = _alias_pattern(
-                country_alias,
-            )
-
-            for city in cities:
-                if entity.country_code is not None and city.country_code != entity.country_code:
-                    continue
-
-                for city_alias in city.aliases:
-                    city_pattern = _alias_pattern(
-                        city_alias,
-                    )
-
-                    patterns = (
-                        rf"{city_pattern}{separators}{country_pattern}",
-                        rf"{country_pattern}{separators}{city_pattern}",
-                    )
-
-                    if any(
-                        re.search(
                             pattern,
-                            text,
-                            re.IGNORECASE,
-                        )
-                        for pattern in patterns
-                    ):
-                        return True
+                        ):
+                            if _pair_is_blocked(
+                                text,
+                                pair_span=pair_span,
+                                city_alias=city_alias,
+                                country_alias=country_alias,
+                            ):
+                                continue
+
+                            return True
 
     return False
 
@@ -228,22 +226,23 @@ def _matches_compact_location_pair(
 @dataclass(frozen=True, slots=True)
 class BioLocationExtractor:
     """
-    Extract explicit current location claims from public biography text.
+    Extract explicit current-location claims from public biography text.
 
-    This extractor intentionally remains conservative.
+    Current residence/location and geographic origin are deliberately
+    different concepts.
 
-    It accepts:
-    - explicit location prose
+    Accepted:
+    - "Based in Tehran"
+    - "ساکن تهران"
     - location-pin forms
     - compact city/country pairs
 
-    It rejects:
+    Not treated as current-location facts:
+    - "From Shiraz"
+    - "اهل شیراز"
     - travel mentions
-    - historical locations
-    - negated current-location claims
-
-    Contextual geographic mentions are handled later by the location signal
-    pipeline and must not become facts here.
+    - former locations
+    - negated locations
     """
 
     lexicon: LocationLexicon = DEFAULT_LOCATION_LEXICON
@@ -267,7 +266,7 @@ class BioLocationExtractor:
         self,
         bio: str,
     ) -> tuple[Evidence, ...]:
-        """Extract explicit city and country evidence from one biography."""
+        """Extract explicit current city and country evidence."""
 
         normalized = normalize_text(
             bio,
@@ -311,7 +310,7 @@ class BioLocationExtractor:
         *,
         kind: FactKind,
     ) -> tuple[Evidence, ...]:
-        """Extract only evidence relevant to CITY or COUNTRY fact resolution."""
+        """Extract only CITY or COUNTRY current-location evidence."""
 
         if kind not in {
             FactKind.CITY,
@@ -359,19 +358,13 @@ class BioLocationExtractor:
     ):
         """Classify one explicit geographic match."""
 
-        if _matches_non_current_context(
-            text,
-            entity,
-        ):
-            return None
-
-        if _matches_explicit_context(
+        if _matches_current_explicit_context(
             text,
             entity,
         ):
             return (
                 self.explicit_confidence,
-                "bio_location_explicit",
+                "bio_location_current",
             )
 
         if _matches_compact_location_pair(

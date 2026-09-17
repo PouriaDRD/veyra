@@ -11,6 +11,7 @@ from veyra.domain.evidence.enums import (
 
 from .enums import (
     HypothesisKind,
+    LocationRelation,
     LocationSignalKind,
 )
 from .hypotheses import (
@@ -28,7 +29,6 @@ LIKELY_LOCATION_HYPOTHESIS_DEFINITION = HypothesisDefinition(
     allow_observed_values=True,
 )
 
-
 LIKELY_LOCATION_HYPOTHESIS_STRATEGY = StaticHypothesisStrategy(
     definition=LIKELY_LOCATION_HYPOTHESIS_DEFINITION,
 )
@@ -37,12 +37,12 @@ LIKELY_LOCATION_HYPOTHESIS_STRATEGY = StaticHypothesisStrategy(
 @dataclass(frozen=True, slots=True)
 class LocationHypothesisAdapter:
     """
-    Convert location facts and signals into generic observations.
+    Convert current-location facts and compatible signals into observations.
 
-    Exact explicit CITY facts receive the strongest influence.
+    ``LIKELY_LOCATION`` currently means likely current location.
 
-    Contextual and observed sources contribute according to their semantic
-    reliability without automatically becoming facts.
+    Origin/hometown evidence is therefore preserved as a signal but is not
+    allowed to support this hypothesis.
     """
 
     explicit_city_fact_weight: float = 1.0
@@ -56,12 +56,7 @@ class LocationHypothesisAdapter:
         self,
         fact: Fact | None,
     ) -> tuple[HypothesisObservation, ...]:
-        """
-        Convert a resolved CITY fact into hypothesis observations.
-
-        COUNTRY facts are intentionally ignored here because LIKELY_LOCATION
-        currently resolves city-level candidates.
-        """
+        """Convert a resolved current CITY fact into observations."""
 
         if fact is None:
             return ()
@@ -100,8 +95,8 @@ class LocationHypothesisAdapter:
                 weight=self.explicit_city_fact_weight,
                 confidence=fact.confidence,
                 source="city_fact",
-                explanation=("Explicit public city claim."),
-                correlation_key=(f"fact:{fact.id}"),
+                explanation="Explicit public current-city claim.",
+                correlation_key=f"fact:{fact.id}",
                 conflict_eligible=True,
             ),
         )
@@ -110,7 +105,7 @@ class LocationHypothesisAdapter:
         self,
         signals: Iterable[LocationSignal],
     ) -> tuple[HypothesisObservation, ...]:
-        """Convert normalized location signals into observations."""
+        """Convert compatible normalized location signals into observations."""
 
         observations: list[HypothesisObservation] = []
 
@@ -134,7 +129,7 @@ class LocationHypothesisAdapter:
         city_fact: Fact | None = None,
         signals: Iterable[LocationSignal] = (),
     ) -> tuple[HypothesisObservation, ...]:
-        """Combine explicit city facts and contextual location signals."""
+        """Combine current city facts and compatible location signals."""
 
         return (
             *self.from_fact(
@@ -149,10 +144,9 @@ class LocationHypothesisAdapter:
         self,
         fact: Fact,
     ) -> tuple[HypothesisObservation, ...]:
-        """Preserve competing explicit city interpretations."""
+        """Preserve competing explicit current-city interpretations."""
 
         observations: list[HypothesisObservation] = []
-
         seen: set[str] = set()
 
         for evidence in fact.evidence:
@@ -183,8 +177,8 @@ class LocationHypothesisAdapter:
                     weight=self.explicit_city_fact_weight,
                     confidence=evidence.confidence,
                     source="city_fact_conflict",
-                    explanation=("Competing explicit public city claim."),
-                    correlation_key=(f"evidence:{evidence.id}"),
+                    explanation="Competing explicit public current-city claim.",
+                    correlation_key=f"evidence:{evidence.id}",
                     conflict_eligible=True,
                 )
             )
@@ -197,7 +191,10 @@ class LocationHypothesisAdapter:
         self,
         signal: LocationSignal,
     ) -> HypothesisObservation | None:
-        """Convert one location signal into a generic observation."""
+        """Convert one compatible location signal into an observation."""
+
+        if signal.relation is LocationRelation.ORIGIN:
+            return None
 
         weight = self._weight_for_signal(
             signal,
@@ -206,18 +203,16 @@ class LocationHypothesisAdapter:
         if weight <= 0:
             return None
 
-        source = f"location_signal:{signal.kind.value}"
-
         return HypothesisObservation(
             target_value=signal.value,
             polarity=ObservationPolarity.SUPPORT,
             weight=weight,
             confidence=signal.confidence,
-            source=source,
+            source=f"location_signal:{signal.kind.value}",
             explanation=self._explanation_for_signal(
                 signal,
             ),
-            correlation_key=(f"location-signal:{signal.id}"),
+            correlation_key=f"location-signal:{signal.id}",
             conflict_eligible=False,
         )
 
@@ -225,18 +220,13 @@ class LocationHypothesisAdapter:
         self,
         signal: LocationSignal,
     ) -> float:
-        """
-        Return bounded semantic weight for one signal.
-
-        The signal's own weight may lower but never exceed the adapter's
-        source-specific maximum.
-        """
+        """Return bounded semantic weight for one signal."""
 
         maximum = {
-            LocationSignalKind.PROFILE_METADATA: (self.profile_metadata_weight),
-            LocationSignalKind.GEOTAG: (self.geotag_weight),
-            LocationSignalKind.BIO_MENTION: (self.bio_mention_weight),
-            LocationSignalKind.CAPTION_MENTION: (self.caption_mention_weight),
+            LocationSignalKind.PROFILE_METADATA: self.profile_metadata_weight,
+            LocationSignalKind.GEOTAG: self.geotag_weight,
+            LocationSignalKind.BIO_MENTION: self.bio_mention_weight,
+            LocationSignalKind.CAPTION_MENTION: self.caption_mention_weight,
         }[signal.kind]
 
         return min(
@@ -248,7 +238,7 @@ class LocationHypothesisAdapter:
     def _explanation_for_signal(
         signal: LocationSignal,
     ) -> str:
-        """Return deterministic explanation text for one signal."""
+        """Return deterministic explanation text."""
 
         if signal.kind is LocationSignalKind.PROFILE_METADATA:
             return f"Public profile metadata indicates the location '{signal.value}'."
@@ -257,6 +247,6 @@ class LocationHypothesisAdapter:
             return f"A public geotag indicates the location '{signal.value}'."
 
         if signal.kind is LocationSignalKind.BIO_MENTION:
-            return f"Public biography text mentions the location '{signal.value}'."
+            return f"Public biography text contextually mentions the location '{signal.value}'."
 
         return f"Public content mentions the location '{signal.value}'."

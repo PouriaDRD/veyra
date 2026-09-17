@@ -72,6 +72,26 @@ class RelationshipStatus(StrEnum):
     UNKNOWN = "unknown"
 
 
+class LocationRelation(StrEnum):
+    """
+    Semantic relationship between a profile and a geographic entity.
+
+    Geographic meaning must remain separate from evidence source.
+
+    For example:
+    - "Based in Tehran" -> CURRENT_RESIDENCE
+    - "From Shiraz" -> ORIGIN
+    - a post geotag -> CONTENT_LOCATION
+    """
+
+    UNSPECIFIED = "unspecified"
+    CURRENT_RESIDENCE = "current_residence"
+    ORIGIN = "origin"
+    CURRENT_PRESENCE = "current_presence"
+    CONTENT_LOCATION = "content_location"
+    CONTEXTUAL_MENTION = "contextual_mention"
+
+
 class LocationSignalKind(StrEnum):
     """
     Contextual or observed public location signals.

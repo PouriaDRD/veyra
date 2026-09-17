@@ -15,6 +15,7 @@ from veyra.domain.intelligence import (
     HypothesisObservation,
     HypothesisResult,
     HypothesisStatus,
+    LocationRelation,
     LocationSignal,
     LocationSignalKind,
 )
@@ -331,3 +332,19 @@ def test_persian_and_english_normalized_location_share_candidate() -> None:
     )
 
     assert result.best_value == "tehran"
+
+
+def test_origin_signal_does_not_support_current_location_hypothesis() -> None:
+    observations = LocationHypothesisAdapter().from_signals(
+        (
+            LocationSignal(
+                kind=LocationSignalKind.BIO_MENTION,
+                value="shiraz",
+                weight=0.20,
+                confidence=0.90,
+                relation=LocationRelation.ORIGIN,
+            ),
+        )
+    )
+
+    assert observations == ()

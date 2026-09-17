@@ -2,7 +2,10 @@
 
 import pytest
 
-from veyra.domain.intelligence import LocationSignalKind
+from veyra.domain.intelligence import (
+    LocationRelation,
+    LocationSignalKind,
+)
 from veyra.domain.intelligence.location_signal_extractor import (
     BioLocationSignalExtractor,
 )
@@ -11,7 +14,7 @@ from veyra.domain.intelligence.location_signal_extractor import (
 def values(
     bio: str,
 ) -> set[str]:
-    """Return normalized contextual location values."""
+    """Return normalized location signal values."""
 
     return {
         signal.value
@@ -63,15 +66,13 @@ def test_extracts_contextual_city_mentions(
     (
         "Based in Tehran",
         "Living in Tehran",
-        "From Tehran",
         "📍 Tehran",
         "ساکن تهران",
-        "اهل تهران",
         "مقیم تهران",
         "📍 تهران",
     ),
 )
-def test_explicit_city_claims_do_not_duplicate_as_signals(
+def test_current_location_claims_do_not_duplicate_as_signals(
     bio: str,
 ) -> None:
     assert (
@@ -80,6 +81,54 @@ def test_explicit_city_claims_do_not_duplicate_as_signals(
         )
         == ()
     )
+
+
+@pytest.mark.parametrize(
+    ("bio", "expected"),
+    (
+        (
+            "From Tehran",
+            "tehran",
+        ),
+        (
+            "Born in Shiraz",
+            "shiraz",
+        ),
+        (
+            "اهل تهران",
+            "tehran",
+        ),
+        (
+            "متولد شیراز",
+            "shiraz",
+        ),
+    ),
+)
+def test_origin_claims_become_origin_signals(
+    bio: str,
+    expected: str,
+) -> None:
+    signals = BioLocationSignalExtractor().extract(
+        bio,
+    )
+
+    assert (
+        len(
+            signals,
+        )
+        == 1
+    )
+
+    signal = signals[0]
+
+    assert signal.value == expected
+
+    assert signal.kind is LocationSignalKind.BIO_MENTION
+
+    assert signal.relation is LocationRelation.ORIGIN
+
+    assert signal.weight == 0.20
+    assert signal.confidence == 0.90
 
 
 @pytest.mark.parametrize(
@@ -107,6 +156,45 @@ def test_travel_and_historical_mentions_are_ignored(
     )
 
 
+@pytest.mark.parametrize(
+    "bio",
+    (
+        "Tehran University",
+        "University of Tehran",
+        "Tehran College",
+        "Tehran Institute",
+        "دانشگاه تهران",
+    ),
+)
+def test_institutional_mentions_are_not_location_signals(
+    bio: str,
+) -> None:
+    assert (
+        BioLocationSignalExtractor().extract(
+            bio,
+        )
+        == ()
+    )
+
+
+@pytest.mark.parametrize(
+    "bio",
+    (
+        "Tehrani designer",
+        "Iranian developer",
+    ),
+)
+def test_location_aliases_do_not_match_inside_other_words(
+    bio: str,
+) -> None:
+    assert (
+        BioLocationSignalExtractor().extract(
+            bio,
+        )
+        == ()
+    )
+
+
 def test_signal_semantics() -> None:
     signals = BioLocationSignalExtractor().extract(
         "عاشق تهران",
@@ -122,6 +210,8 @@ def test_signal_semantics() -> None:
     signal = signals[0]
 
     assert signal.kind is LocationSignalKind.BIO_MENTION
+
+    assert signal.relation is LocationRelation.CONTEXTUAL_MENTION
 
     assert signal.value == "tehran"
     assert signal.weight == 0.35
@@ -153,3 +243,66 @@ def test_multiple_contextual_cities_are_preserved() -> None:
         "tehran",
         "karaj",
     }
+
+
+def test_current_location_wins_over_same_city_origin_signal() -> None:
+    signals = BioLocationSignalExtractor().extract(
+        "From Tehran | Based in Tehran",
+    )
+
+    assert signals == ()
+
+
+def test_origin_and_different_current_city_are_preserved_separately() -> None:
+    signals = BioLocationSignalExtractor().extract(
+        "From Shiraz | Based in Tehran",
+    )
+
+    assert (
+        len(
+            signals,
+        )
+        == 1
+    )
+
+    signal = signals[0]
+
+    assert signal.value == "shiraz"
+
+    assert signal.relation is LocationRelation.ORIGIN
+
+
+def test_persian_origin_and_current_city_are_preserved_separately() -> None:
+    signals = BioLocationSignalExtractor().extract(
+        "اهل شیراز | ساکن تهران",
+    )
+
+    assert (
+        len(
+            signals,
+        )
+        == 1
+    )
+
+    signal = signals[0]
+
+    assert signal.value == "shiraz"
+
+    assert signal.relation is LocationRelation.ORIGIN
+
+
+def test_travel_occurrence_does_not_hide_separate_contextual_occurrence() -> None:
+    signals = BioLocationSignalExtractor().extract(
+        "Traveling to Tehran | Tehran photographer",
+    )
+
+    assert (
+        len(
+            signals,
+        )
+        == 1
+    )
+
+    assert signals[0].value == "tehran"
+
+    assert signals[0].relation is LocationRelation.CONTEXTUAL_MENTION

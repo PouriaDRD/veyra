@@ -1,13 +1,9 @@
-"""Tests for multilingual explicit location extraction."""
+"""Tests for multilingual explicit current-location extraction."""
 
 import pytest
 
-from veyra.domain.evidence import (
-    FactKind,
-)
-from veyra.domain.evidence.extractors import (
-    BioLocationExtractor,
-)
+from veyra.domain.evidence import FactKind
+from veyra.domain.evidence.extractors import BioLocationExtractor
 from veyra.domain.intelligence import (
     EvidenceNature,
     EvidenceStrength,
@@ -45,20 +41,12 @@ def normalized_values(
             {"tehran"},
         ),
         (
-            "From Shiraz",
-            {"shiraz"},
-        ),
-        (
             "📍 Tehran",
             {"tehran"},
         ),
         (
             "ساکن تهران",
             {"tehran"},
-        ),
-        (
-            "اهل شیراز",
-            {"shiraz"},
         ),
         (
             "مقیم کرج",
@@ -70,7 +58,7 @@ def normalized_values(
         ),
     ),
 )
-def test_extracts_explicit_city_claims(
+def test_extracts_explicit_current_city_claims(
     bio: str,
     expected: set[str],
 ) -> None:
@@ -79,6 +67,26 @@ def test_extracts_explicit_city_claims(
             bio,
         )
         == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "bio",
+    (
+        "From Shiraz",
+        "Born in Shiraz",
+        "اهل شیراز",
+        "متولد شیراز",
+    ),
+)
+def test_origin_claims_do_not_become_current_location_facts(
+    bio: str,
+) -> None:
+    assert (
+        BioLocationExtractor().extract(
+            bio,
+        )
+        == ()
     )
 
 
@@ -162,7 +170,7 @@ def test_explicit_evidence_has_correct_semantics() -> None:
 
     assert item.strength is EvidenceStrength.VERY_STRONG
 
-    assert item.extractor == "bio_location_explicit"
+    assert item.extractor == "bio_location_current"
 
 
 def test_compact_pair_uses_slightly_lower_confidence() -> None:
@@ -219,8 +227,80 @@ def test_non_current_location_claims_are_ignored(
     )
 
 
+def test_travel_occurrence_does_not_hide_separate_current_claim() -> None:
+    evidence = BioLocationExtractor().extract_for_kind(
+        "Traveling to Tehran | Based in Tehran",
+        kind=FactKind.CITY,
+    )
+
+    assert (
+        len(
+            evidence,
+        )
+        == 1
+    )
+
+    assert evidence[0].normalized_value == "tehran"
+
+
+def test_origin_and_current_city_remain_semantically_separate() -> None:
+    evidence = BioLocationExtractor().extract_for_kind(
+        "From Shiraz | Based in Tehran",
+        kind=FactKind.CITY,
+    )
+
+    assert (
+        len(
+            evidence,
+        )
+        == 1
+    )
+
+    assert evidence[0].normalized_value == "tehran"
+
+
+def test_persian_origin_and_current_city_remain_separate() -> None:
+    evidence = BioLocationExtractor().extract_for_kind(
+        "اهل شیراز | ساکن تهران",
+        kind=FactKind.CITY,
+    )
+
+    assert (
+        len(
+            evidence,
+        )
+        == 1
+    )
+
+    assert evidence[0].normalized_value == "tehran"
+
+
+@pytest.mark.parametrize(
+    "bio",
+    (
+        "From Tehran, Iran",
+        "Born in Tehran, Iran",
+        "اهل تهران، ایران",
+    ),
+)
+def test_origin_city_country_pair_does_not_become_current_location(
+    bio: str,
+) -> None:
+    assert (
+        BioLocationExtractor().extract(
+            bio,
+        )
+        == ()
+    )
+
+
 def test_bare_city_mention_is_not_explicit_fact() -> None:
-    assert BioLocationExtractor().extract("I love Tehran food") == ()
+    assert (
+        BioLocationExtractor().extract(
+            "I love Tehran food",
+        )
+        == ()
+    )
 
 
 def test_city_kind_filter_returns_only_city() -> None:

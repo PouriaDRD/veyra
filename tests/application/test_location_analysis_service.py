@@ -234,3 +234,184 @@ def test_relationship_and_location_hypotheses_coexist() -> None:
     assert location.status is HypothesisStatus.STRONGLY_SUPPORTED
 
     assert location.best_value == "tehran"
+
+
+def test_origin_only_does_not_become_current_location() -> None:
+    result = ProfileAnalysisService().analyze(
+        build_snapshot(
+            bio="From Shiraz",
+        ),
+        reference_date=REFERENCE_DATE,
+    )
+
+    city = result.fact_for(
+        FactKind.CITY,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.LIKELY_LOCATION,
+    )
+
+    assert city is not None
+    assert hypothesis is not None
+
+    assert city.status is FactStatus.UNKNOWN
+    assert city.value is None
+
+    assert hypothesis.status is HypothesisStatus.UNKNOWN
+    assert hypothesis.best_value == "unknown"
+
+
+def test_persian_origin_only_does_not_become_current_location() -> None:
+    result = ProfileAnalysisService().analyze(
+        build_snapshot(
+            bio="اهل شیراز",
+        ),
+        reference_date=REFERENCE_DATE,
+    )
+
+    city = result.fact_for(
+        FactKind.CITY,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.LIKELY_LOCATION,
+    )
+
+    assert city is not None
+    assert hypothesis is not None
+
+    assert city.status is FactStatus.UNKNOWN
+    assert city.value is None
+
+    assert hypothesis.status is HypothesisStatus.UNKNOWN
+    assert hypothesis.best_value == "unknown"
+
+
+def test_origin_and_current_residence_do_not_conflict() -> None:
+    result = ProfileAnalysisService().analyze(
+        build_snapshot(
+            bio="From Shiraz | Based in Tehran",
+        ),
+        reference_date=REFERENCE_DATE,
+    )
+
+    city = result.fact_for(
+        FactKind.CITY,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.LIKELY_LOCATION,
+    )
+
+    assert city is not None
+    assert hypothesis is not None
+
+    assert city.status is FactStatus.SUPPORTED
+    assert city.value == "tehran"
+
+    assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
+    assert hypothesis.best_value == "tehran"
+
+
+def test_persian_origin_and_current_residence_do_not_conflict() -> None:
+    result = ProfileAnalysisService().analyze(
+        build_snapshot(
+            bio="اهل شیراز | ساکن تهران",
+        ),
+        reference_date=REFERENCE_DATE,
+    )
+
+    city = result.fact_for(
+        FactKind.CITY,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.LIKELY_LOCATION,
+    )
+
+    assert city is not None
+    assert hypothesis is not None
+
+    assert city.status is FactStatus.SUPPORTED
+    assert city.value == "tehran"
+
+    assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
+    assert hypothesis.best_value == "tehran"
+
+
+def test_travel_and_current_residence_can_coexist() -> None:
+    result = ProfileAnalysisService().analyze(
+        build_snapshot(
+            bio="Traveling to Tehran | Based in Tehran",
+        ),
+        reference_date=REFERENCE_DATE,
+    )
+
+    city = result.fact_for(
+        FactKind.CITY,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.LIKELY_LOCATION,
+    )
+
+    assert city is not None
+    assert hypothesis is not None
+
+    assert city.status is FactStatus.SUPPORTED
+    assert city.value == "tehran"
+
+    assert hypothesis.best_value == "tehran"
+
+
+def test_institution_name_does_not_create_location_intelligence() -> None:
+    result = ProfileAnalysisService().analyze(
+        build_snapshot(
+            bio="Student at Tehran University",
+        ),
+        reference_date=REFERENCE_DATE,
+    )
+
+    city = result.fact_for(
+        FactKind.CITY,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.LIKELY_LOCATION,
+    )
+
+    assert city is not None
+    assert hypothesis is not None
+
+    assert city.status is FactStatus.UNKNOWN
+    assert city.value is None
+
+    assert hypothesis.status is HypothesisStatus.UNKNOWN
+    assert hypothesis.best_value == "unknown"
+
+
+def test_location_alias_inside_other_word_is_ignored() -> None:
+    result = ProfileAnalysisService().analyze(
+        build_snapshot(
+            bio="Tehrani designer",
+        ),
+        reference_date=REFERENCE_DATE,
+    )
+
+    city = result.fact_for(
+        FactKind.CITY,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.LIKELY_LOCATION,
+    )
+
+    assert city is not None
+    assert hypothesis is not None
+
+    assert city.status is FactStatus.UNKNOWN
+    assert city.value is None
+
+    assert hypothesis.status is HypothesisStatus.UNKNOWN
+    assert hypothesis.best_value == "unknown"

@@ -1,9 +1,11 @@
 """Multilingual contextual location-signal extraction."""
 
-import re
 from dataclasses import dataclass
 
-from .enums import LocationSignalKind
+from .enums import (
+    LocationRelation,
+    LocationSignalKind,
+)
 from .location import (
     DEFAULT_LOCATION_LEXICON,
     LocationEntity,
@@ -11,148 +13,125 @@ from .location import (
     LocationLexicon,
 )
 from .location_signals import LocationSignal
+from .location_text import (
+    context_spans_for_alias,
+    find_pattern_spans,
+    location_alias_pattern,
+    overlaps_any,
+)
 from .text import normalize_text
 
-_BLOCKED_CONTEXT_PATTERNS = (
-    # English travel / historical context.
+_BLOCKED_CONTEXTS = (
+    # English travel / history / negation.
     r"\bvisited\s+{alias}",
     r"\bvisiting\s+{alias}",
     r"\btravel(?:ing|ling)?\s+to\s+{alias}",
     r"\btrip\s+to\s+{alias}",
     r"\bformerly\s+(?:in|based\s+in|living\s+in)\s+{alias}",
     r"\bused\s+to\s+live\s+in\s+{alias}",
-    # Persian travel / historical context.
+    r"\bnot\s+(?:in|based\s+in|living\s+in)\s+{alias}",
+    # Persian travel / history / negation.
     r"سفر\s+به\s+{alias}",
     r"مسافرت\s+به\s+{alias}",
     r"قبلا\s+ساکن\s+{alias}",
     r"قبلاً\s+ساکن\s+{alias}",
+    r"دیگر\s+ساکن\s+{alias}",
 )
 
-_EXPLICIT_CONTEXT_PATTERNS = (
-    # English explicit current-location forms.
+_CURRENT_CONTEXTS = (
+    # English.
     r"\bbased\s+in\s+{alias}",
     r"\bliving\s+in\s+{alias}",
     r"\blive\s+in\s+{alias}",
-    r"\bfrom\s+{alias}",
     r"\blocated\s+in\s+{alias}",
-    # Persian explicit forms.
+    r"\blocation\s*:\s*{alias}",
+    # Persian.
     r"ساکن\s+{alias}",
     r"ساکنِ\s+{alias}",
-    r"اهل\s+{alias}",
     r"مقیم\s+{alias}",
     r"زندگی\s+در\s+{alias}",
-    # Pin forms are explicit location evidence.
+    r"محل\s+زندگی\s*:?\s*{alias}",
+    # Explicit profile location markers.
     r"(?:📍|🌍|🌎|🌏)\s*{alias}",
 )
 
+_ORIGIN_CONTEXTS = (
+    # English.
+    r"\bfrom\s+{alias}",
+    r"\bborn\s+in\s+{alias}",
+    # Persian.
+    r"اهل\s+{alias}",
+    r"متولد\s+{alias}",
+    r"زاده(?:ی|ٔ)?\s+{alias}",
+)
 
-def _alias_pattern(
-    alias: str,
-) -> str:
-    """Build a safe Unicode-aware regex fragment for one alias."""
-
-    escaped = re.escape(
-        normalize_text(
-            alias,
-        )
-    )
-
-    return escaped.replace(
-        r"\ ",
-        r"\s+",
-    )
-
-
-def _contains_pattern(
-    text: str,
-    *,
-    alias: str,
-    patterns: tuple[str, ...],
-) -> bool:
-    """Return whether one alias matches any contextual pattern."""
-
-    alias_pattern = _alias_pattern(
-        alias,
-    )
-
-    return any(
-        re.search(
-            pattern.format(
-                alias=alias_pattern,
-            ),
-            text,
-            re.IGNORECASE,
-        )
-        is not None
-        for pattern in patterns
-    )
+_INSTITUTIONAL_CONTEXTS = (
+    # English organization names.
+    r"{alias}\s+(?:university|college|institute|school|hospital|clinic)\b",
+    r"(?:university|college|institute|school|hospital|clinic)" r"\s+(?:of\s+)?{alias}",
+    r"{alias}\s+times\b",
+    r"{alias}\s+stock\s+exchange\b",
+    # Persian organization names.
+    r"دانشگاه\s+{alias}",
+    r"دانشگاه\s+علوم\s+پزشکی\s+{alias}",
+    r"{alias}\s+دانشگاه",
+    r"بورس\s+{alias}",
+)
 
 
-def _contains_alias(
-    text: str,
-    alias: str,
-) -> bool:
-    """Return whether normalized text contains one location alias."""
+@dataclass(frozen=True, slots=True)
+class _LocationMentionClassification:
+    """Internal semantic classification for one city in biography text."""
 
-    alias_pattern = _alias_pattern(
-        alias,
-    )
-
-    return (
-        re.search(
-            alias_pattern,
-            text,
-            re.IGNORECASE,
-        )
-        is not None
-    )
+    has_current: bool = False
+    has_contextual: bool = False
+    has_origin: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class BioLocationSignalExtractor:
     """
-    Extract contextual city signals from public biography text.
+    Extract non-factual city signals from public biography text.
 
-    This extractor intentionally does not produce facts.
+    The extractor distinguishes:
+    - current residence claims
+    - origin/hometown claims
+    - contextual mentions
+    - travel/history mentions
+    - institutional name mentions
 
-    Explicit current-location forms are handled by ``BioLocationExtractor``.
-    Travel and historical mentions are ignored.
-
-    Examples accepted:
-    - "I love Tehran food"
-    - "تهران و قهوه"
-    - "Designer | Tehran"
-
-    Examples ignored:
-    - "Based in Tehran"
-    - "ساکن تهران"
-    - "Traveling to Tehran"
-    - "سفر به تهران"
+    Explicit current residence is intentionally left to
+    ``BioLocationExtractor`` to avoid double counting.
     """
 
     lexicon: LocationLexicon = DEFAULT_LOCATION_LEXICON
 
-    weight: float = 0.35
-    confidence: float = 0.85
+    contextual_weight: float = 0.35
+    contextual_confidence: float = 0.85
+
+    origin_weight: float = 0.20
+    origin_confidence: float = 0.90
 
     def __post_init__(self) -> None:
-        """Validate signal configuration."""
+        """Validate configured weights and confidence values."""
 
-        if not 0 <= self.weight <= 1:
-            raise ValueError(
-                "bio location signal weight must be between 0 and 1.",
-            )
+        values = (
+            self.contextual_weight,
+            self.contextual_confidence,
+            self.origin_weight,
+            self.origin_confidence,
+        )
 
-        if not 0 <= self.confidence <= 1:
+        if any(not 0 <= value <= 1 for value in values):
             raise ValueError(
-                "bio location signal confidence must be between 0 and 1.",
+                "location signal weights and confidence must be between 0 and 1.",
             )
 
     def extract(
         self,
         bio: str,
     ) -> tuple[LocationSignal, ...]:
-        """Extract contextual city mentions from one biography."""
+        """Extract semantic city signals from biography text."""
 
         normalized = normalize_text(
             bio,
@@ -166,58 +145,125 @@ class BioLocationSignalExtractor:
         for entity in self.lexicon.by_kind(
             LocationEntityKind.CITY,
         ):
-            if not self._is_contextual_match(
+            classification = self._classify_entity(
                 normalized,
                 entity,
-            ):
+            )
+
+            # Explicit current residence already becomes Fact evidence.
+            # Emitting another signal here would double count the same source.
+            if classification.has_current:
                 continue
 
-            signals.append(
-                LocationSignal(
-                    kind=LocationSignalKind.BIO_MENTION,
-                    value=entity.value,
-                    weight=self.weight,
-                    confidence=self.confidence,
-                    context=bio,
+            if classification.has_contextual:
+                signals.append(
+                    LocationSignal(
+                        kind=LocationSignalKind.BIO_MENTION,
+                        value=entity.value,
+                        weight=self.contextual_weight,
+                        confidence=self.contextual_confidence,
+                        relation=LocationRelation.CONTEXTUAL_MENTION,
+                        context=bio,
+                    )
                 )
-            )
+
+                continue
+
+            if classification.has_origin:
+                signals.append(
+                    LocationSignal(
+                        kind=LocationSignalKind.BIO_MENTION,
+                        value=entity.value,
+                        weight=self.origin_weight,
+                        confidence=self.origin_confidence,
+                        relation=LocationRelation.ORIGIN,
+                        context=bio,
+                    )
+                )
 
         return tuple(
             signals,
         )
 
     @staticmethod
-    def _is_contextual_match(
+    def _classify_entity(
         text: str,
         entity: LocationEntity,
-    ) -> bool:
-        """
-        Return whether a city appears only as usable contextual evidence.
+    ) -> _LocationMentionClassification:
+        """Classify all occurrences of one city in biography text."""
 
-        Explicit, historical, and travel contexts are excluded.
-        """
+        has_current = False
+        has_contextual = False
+        has_origin = False
 
         for alias in entity.aliases:
-            if not _contains_alias(
-                text,
+            alias_pattern = location_alias_pattern(
                 alias,
-            ):
+            )
+
+            alias_spans = find_pattern_spans(
+                text,
+                alias_pattern,
+            )
+
+            if not alias_spans:
                 continue
 
-            if _contains_pattern(
+            blocked = context_spans_for_alias(
                 text,
                 alias=alias,
-                patterns=_BLOCKED_CONTEXT_PATTERNS,
-            ):
-                continue
+                context_patterns=_BLOCKED_CONTEXTS,
+            )
 
-            if _contains_pattern(
+            current = context_spans_for_alias(
                 text,
                 alias=alias,
-                patterns=_EXPLICIT_CONTEXT_PATTERNS,
-            ):
-                continue
+                context_patterns=_CURRENT_CONTEXTS,
+            )
 
-            return True
+            origin = context_spans_for_alias(
+                text,
+                alias=alias,
+                context_patterns=_ORIGIN_CONTEXTS,
+            )
 
-        return False
+            institutional = context_spans_for_alias(
+                text,
+                alias=alias,
+                context_patterns=_INSTITUTIONAL_CONTEXTS,
+            )
+
+            for span in alias_spans:
+                if overlaps_any(
+                    span,
+                    blocked,
+                ):
+                    continue
+
+                if overlaps_any(
+                    span,
+                    institutional,
+                ):
+                    continue
+
+                if overlaps_any(
+                    span,
+                    current,
+                ):
+                    has_current = True
+                    continue
+
+                if overlaps_any(
+                    span,
+                    origin,
+                ):
+                    has_origin = True
+                    continue
+
+                has_contextual = True
+
+        return _LocationMentionClassification(
+            has_current=has_current,
+            has_contextual=has_contextual,
+            has_origin=has_origin,
+        )
