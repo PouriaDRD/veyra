@@ -5,6 +5,10 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from veyra.domain.common import ensure_utc_datetime, utc_now
+from veyra.domain.intelligence import (
+    EvidenceNature,
+    EvidenceStrength,
+)
 
 from .birth_year import BirthYear
 from .enums import (
@@ -22,7 +26,12 @@ class Evidence:
     """
     One explainable observation supporting a normalized fact.
 
-    Evidence contains only explicit/publicly observable information.
+    Evidence contains only explicit or publicly observable information.
+
+    ``nature`` describes what kind of evidence this is.
+    ``strength`` describes its semantic strength.
+    ``confidence`` remains the numeric confidence assigned to the specific
+    normalized interpretation.
 
     Ambiguous evidence represents one possible interpretation of a raw
     observation rather than a definitive contradictory claim.
@@ -42,6 +51,10 @@ class Evidence:
     )
 
     extractor: str | None = None
+
+    nature: EvidenceNature = EvidenceNature.OBSERVED
+
+    strength: EvidenceStrength = EvidenceStrength.MODERATE
 
     is_ambiguous: bool = False
 
@@ -64,6 +77,13 @@ class Evidence:
 
         if extractor is not None:
             extractor = extractor.strip() or None
+
+        if self.is_ambiguous and self.nature is not EvidenceNature.AMBIGUOUS:
+            object.__setattr__(
+                self,
+                "nature",
+                EvidenceNature.AMBIGUOUS,
+            )
 
         object.__setattr__(
             self,

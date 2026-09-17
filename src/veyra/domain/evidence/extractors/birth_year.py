@@ -3,6 +3,11 @@
 import re
 from dataclasses import dataclass
 
+from veyra.domain.intelligence import (
+    EvidenceNature,
+    EvidenceStrength,
+)
+
 from ..birth_year import BirthYear, CalendarSystem
 from ..entities import Evidence
 from ..enums import EvidenceSource
@@ -89,8 +94,12 @@ class UsernameBirthYearExtractor:
     """
     Extract explicit-looking birth years from usernames.
 
-    Four-digit values are stronger evidence. Two-digit suffixes remain
-    intentionally ambiguous and produce multiple low-confidence candidates.
+    Four-digit values are treated as contextual evidence because the
+    username contains the year but does not explicitly state that it is
+    a birth year.
+
+    Two-digit values remain intentionally ambiguous and produce multiple
+    low-confidence interpretations.
     """
 
     four_digit_confidence: float = 0.75
@@ -116,6 +125,7 @@ class UsernameBirthYearExtractor:
 
         for match in four_digit_matches:
             raw_year = match.group("year")
+
             birth_year = _normalize_four_digit_year(
                 int(raw_year),
             )
@@ -130,6 +140,8 @@ class UsernameBirthYearExtractor:
                     normalized_value=birth_year,
                     confidence=self.four_digit_confidence,
                     extractor="username_birth_year",
+                    nature=EvidenceNature.CONTEXTUAL,
+                    strength=EvidenceStrength.STRONG,
                 )
             )
 
@@ -157,6 +169,8 @@ class UsernameBirthYearExtractor:
                         ),
                         confidence=self.two_digit_confidence,
                         extractor="username_birth_year_ambiguous",
+                        nature=EvidenceNature.AMBIGUOUS,
+                        strength=EvidenceStrength.WEAK,
                         is_ambiguous=True,
                     ),
                     Evidence(
@@ -168,6 +182,8 @@ class UsernameBirthYearExtractor:
                         ),
                         confidence=self.two_digit_confidence,
                         extractor="username_birth_year_ambiguous",
+                        nature=EvidenceNature.AMBIGUOUS,
+                        strength=EvidenceStrength.WEAK,
                         is_ambiguous=True,
                     ),
                 )
@@ -179,10 +195,13 @@ class UsernameBirthYearExtractor:
 @dataclass(frozen=True, slots=True)
 class BioBirthYearExtractor:
     """
-    Extract explicit birth-year statements from profile biographies.
+    Extract birth-year evidence from public profile biography text.
 
-    Explicit language such as ``born 1997`` or ``متولد ۱۳۸۸`` receives
-    stronger confidence than an isolated four-digit year.
+    Explicit statements such as ``born 1997`` or ``متولد ۱۳۸۸`` are treated
+    as very strong explicit evidence.
+
+    Isolated four-digit years remain contextual because their meaning cannot
+    be established with the same certainty.
     """
 
     explicit_confidence: float = 0.95
@@ -210,6 +229,7 @@ class BioBirthYearExtractor:
 
         for match in explicit_matches:
             raw_year = match.group("year")
+
             birth_year = _normalize_four_digit_year(
                 int(raw_year),
             )
@@ -224,6 +244,8 @@ class BioBirthYearExtractor:
                     normalized_value=birth_year,
                     confidence=self.explicit_confidence,
                     extractor="bio_birth_year_explicit",
+                    nature=EvidenceNature.EXPLICIT,
+                    strength=EvidenceStrength.VERY_STRONG,
                 )
             )
 
@@ -238,6 +260,7 @@ class BioBirthYearExtractor:
                 continue
 
             raw_year = match.group("year")
+
             birth_year = _normalize_four_digit_year(
                 int(raw_year),
             )
@@ -252,6 +275,8 @@ class BioBirthYearExtractor:
                     normalized_value=birth_year,
                     confidence=self.isolated_confidence,
                     extractor="bio_birth_year_isolated",
+                    nature=EvidenceNature.CONTEXTUAL,
+                    strength=EvidenceStrength.MODERATE,
                 )
             )
 

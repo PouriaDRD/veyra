@@ -10,6 +10,10 @@ from veyra.domain.evidence import (
     FactKind,
     FactStatus,
 )
+from veyra.domain.intelligence import (
+    EvidenceNature,
+    EvidenceStrength,
+)
 
 
 def build_birth_year_evidence(
@@ -134,3 +138,30 @@ def test_unknown_fact_has_zero_confidence() -> None:
 
     assert fact.value is None
     assert fact.evidence == ()
+
+
+def test_evidence_preserves_semantic_metadata() -> None:
+    evidence = Evidence(
+        source=EvidenceSource.BIO,
+        raw_value="born 1997",
+        normalized_value=1997,
+        confidence=0.95,
+        nature=EvidenceNature.EXPLICIT,
+        strength=EvidenceStrength.VERY_STRONG,
+    )
+
+    assert evidence.nature is EvidenceNature.EXPLICIT
+    assert evidence.strength is EvidenceStrength.VERY_STRONG
+
+
+def test_ambiguous_evidence_normalizes_nature() -> None:
+    evidence = Evidence(
+        source=EvidenceSource.USERNAME,
+        raw_value="88",
+        normalized_value=1988,
+        confidence=0.25,
+        is_ambiguous=True,
+    )
+
+    assert evidence.is_ambiguous is True
+    assert evidence.nature is EvidenceNature.AMBIGUOUS
