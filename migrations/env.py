@@ -1,12 +1,15 @@
 """Alembic migration environment."""
 
 from logging.config import fileConfig
+from typing import Any, Literal
 
 from alembic import context
+from alembic.autogenerate.api import AutogenContext
 from sqlalchemy import engine_from_config, pool
 
 from veyra.config import get_settings
 from veyra.infrastructure.database import Base, build_sqlite_url
+from veyra.infrastructure.database.types import UTCDateTime
 
 config = context.config
 
@@ -23,10 +26,33 @@ config.set_main_option(
 target_metadata = Base.metadata
 
 
+def render_item(
+    type_: str,
+    obj: Any,
+    _autogen_context: AutogenContext,
+) -> str | Literal[False]:
+    """
+    Customize Alembic's generated migration representation.
+
+    Runtime-only custom SQLAlchemy types should not make migrations depend
+    on application implementation modules.
+    """
+
+    if type_ == "type" and isinstance(
+        obj,
+        UTCDateTime,
+    ):
+        return "sa.DateTime()"
+
+    return False
+
+
 def run_migrations_offline() -> None:
     """Run migrations without creating a database connection."""
 
-    url = config.get_main_option("sqlalchemy.url")
+    url = config.get_main_option(
+        "sqlalchemy.url",
+    )
 
     context.configure(
         url=url,
@@ -36,6 +62,7 @@ def run_migrations_offline() -> None:
             "paramstyle": "named",
         },
         compare_type=True,
+        render_item=render_item,
     )
 
     with context.begin_transaction():
@@ -60,6 +87,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             compare_type=True,
             render_as_batch=True,
+            render_item=render_item,
         )
 
         with context.begin_transaction():
