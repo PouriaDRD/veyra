@@ -22,6 +22,7 @@ def test_default_settings(
     assert settings.database_path == Path("data/veyra.db")
     assert settings.media_root == Path("data/media")
     assert settings.log_dir == Path("logs")
+    assert settings.database_echo is False
 
 
 def test_settings_read_environment_variables(

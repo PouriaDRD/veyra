@@ -3,7 +3,14 @@
 from dataclasses import dataclass, field
 from time import monotonic
 
+from sqlalchemy import Engine
+
 from veyra.config import Settings, get_settings
+from veyra.infrastructure.database import (
+    check_database_health,
+    create_database_engine,
+    create_session_factory,
+)
 from veyra.logging import (
     bind_log_context,
     clear_log_context,
@@ -40,6 +47,12 @@ class ApplicationLifecycle:
         repr=False,
     )
 
+    _database_engine: Engine | None = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
+
     @property
     def is_started(self) -> bool:
         """Return whether the application lifecycle is currently active."""
@@ -56,7 +69,9 @@ class ApplicationLifecycle:
         """
 
         if self._context is None:
-            raise RuntimeError("Veyra application has not been started.")
+            raise RuntimeError(
+                "Veyra application has not been started.",
+            )
 
         return self._context
 
@@ -84,17 +99,41 @@ class ApplicationLifecycle:
 
         logger = get_logger(LOGGER_NAME)
 
+        database_engine = create_database_engine(
+            settings.database_path,
+            echo=settings.database_echo,
+        )
+
+        session_factory = create_session_factory(
+            database_engine,
+        )
+
+        database_health = check_database_health(
+            database_engine,
+        )
+
+        if not database_health.healthy:
+            database_engine.dispose()
+
+            raise RuntimeError(
+                "Veyra database health check failed.",
+            )
+
         context = ApplicationContext(
             settings=settings,
             logger=logger,
+            database_engine=database_engine,
+            session_factory=session_factory,
         )
 
+        self._database_engine = database_engine
         self._started_at = monotonic()
         self._context = context
 
         logger.info(
             "application_started",
             debug=settings.debug,
+            sqlite_version=database_health.sqlite_version,
         )
 
         return context
@@ -117,7 +156,11 @@ class ApplicationLifecycle:
             uptime_seconds=elapsed_seconds,
         )
 
+        if self._database_engine is not None:
+            self._database_engine.dispose()
+
         self._context = None
+        self._database_engine = None
         self._started_at = None
 
         clear_log_context()

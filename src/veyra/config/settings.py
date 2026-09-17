@@ -50,6 +50,8 @@ class Settings(BaseSettings):
 
     database_path: Path = Path("./data/veyra.db")
 
+    database_echo: bool = False
+
     media_root: Path = Path("./data/media")
 
     log_dir: Path = Path("./logs")

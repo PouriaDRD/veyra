@@ -42,6 +42,10 @@ def test_lifecycle_starts_application(
     assert log_context["application"] == "veyra"
     assert log_context["environment"] == "test"
 
+    assert context.database_engine is not None
+    assert context.session_factory is not None
+    assert context.settings.database_path.exists()
+
     lifecycle.stop()
 
 

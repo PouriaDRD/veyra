@@ -11,9 +11,12 @@ requires-python = ">=3.13"
 authors = [
     { name = "Pouria Darandi" },
 ]
+
 dependencies = [
+    "alembic>=1.20,<2",
     "pydantic>=2.13.5,<3",
     "pydantic-settings>=2.15,<3",
+    "sqlalchemy>=2.0.54,<2.1",
     "structlog>=26.1,<27",
 ]
 
