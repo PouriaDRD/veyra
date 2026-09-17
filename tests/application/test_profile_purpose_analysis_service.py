@@ -4,6 +4,7 @@ from datetime import date
 from uuid import uuid4
 
 from veyra.application import ProfileAnalysisService
+from veyra.domain.evidence import FactKind
 from veyra.domain.intelligence import (
     HypothesisKind,
     HypothesisResult,
@@ -256,7 +257,7 @@ def test_display_name_and_bio_are_independent_correlation_sources() -> None:
     }
 
 
-def test_purpose_analysis_does_not_create_new_facts() -> None:
+def test_purpose_analysis_does_not_create_profile_purpose_fact() -> None:
     result = ProfileAnalysisService().analyze(
         build_snapshot(
             bio="Software Engineer | Content Creator",
@@ -266,7 +267,14 @@ def test_purpose_analysis_does_not_create_new_facts() -> None:
 
     fact_kinds = {fact.kind for fact in result.facts}
 
-    assert len(fact_kinds) == 4
+    assert fact_kinds == {
+        FactKind.BIRTH_YEAR,
+        FactKind.RELATIONSHIP_STATUS,
+        FactKind.CITY,
+        FactKind.COUNTRY,
+        FactKind.OCCUPATION,
+        FactKind.EMPLOYER,
+    }
 
 
 # ============================================================

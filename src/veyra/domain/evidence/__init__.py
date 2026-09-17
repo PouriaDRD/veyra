@@ -13,14 +13,26 @@ from .enums import (
     FactStatus,
 )
 from .extractors import (
+    DEFAULT_OCCUPATION_LEXICON,
     BioBirthYearExtractor,
+    BioEmployerExtractor,
+    BioLocationExtractor,
+    BioRelationshipStatusExtractor,
+    OccupationEntry,
+    OccupationLexicon,
+    OccupationTextSource,
+    ProfileOccupationExtractor,
     UsernameBirthYearExtractor,
     normalize_digits,
 )
 from .resolver import FactResolver
 
 __all__ = [
+    "DEFAULT_OCCUPATION_LEXICON",
     "BioBirthYearExtractor",
+    "BioEmployerExtractor",
+    "BioLocationExtractor",
+    "BioRelationshipStatusExtractor",
     "BirthYear",
     "CalendarSystem",
     "ConfidenceLevel",
@@ -31,6 +43,10 @@ __all__ = [
     "FactResolver",
     "FactStatus",
     "FactValue",
+    "OccupationEntry",
+    "OccupationLexicon",
+    "OccupationTextSource",
+    "ProfileOccupationExtractor",
     "UsernameBirthYearExtractor",
     "combine_confidences",
     "conflict_confidence",

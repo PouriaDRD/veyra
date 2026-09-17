@@ -5,10 +5,12 @@ from datetime import date
 from veyra.application.dto.analysis import ProfileAnalysisResult
 from veyra.domain.evidence import (
     BioBirthYearExtractor,
+    BioEmployerExtractor,
     Evidence,
     Fact,
     FactKind,
     FactResolver,
+    ProfileOccupationExtractor,
     UsernameBirthYearExtractor,
 )
 from veyra.domain.evidence.extractors import (
@@ -63,6 +65,8 @@ class ProfileAnalysisService:
     - multilingual explicit city/country extraction
     - contextual biography location signals
     - likely-current-location inference
+    - explicit multilingual occupation fact extraction
+    - explicit multilingual employer fact extraction
     - source-aware multilingual profile-purpose signal extraction
     - profile-purpose inference from public biography and display name
 
@@ -81,6 +85,8 @@ class ProfileAnalysisService:
         bio_location_extractor: BioLocationExtractor | None = None,
         bio_location_signal_extractor: BioLocationSignalExtractor | None = None,
         location_hypothesis_adapter: LocationHypothesisAdapter | None = None,
+        profile_occupation_extractor: ProfileOccupationExtractor | None = None,
+        bio_employer_extractor: BioEmployerExtractor | None = None,
         profile_purpose_signal_extractor: ProfilePurposeSignalExtractor | None = None,
         profile_purpose_hypothesis_adapter: (ProfilePurposeHypothesisAdapter | None) = None,
         hypothesis_service: HypothesisEvaluationService | None = None,
@@ -131,6 +137,16 @@ class ProfileAnalysisService:
             location_hypothesis_adapter
             if location_hypothesis_adapter is not None
             else LocationHypothesisAdapter()
+        )
+
+        self._profile_occupation_extractor = (
+            profile_occupation_extractor
+            if profile_occupation_extractor is not None
+            else ProfileOccupationExtractor()
+        )
+
+        self._bio_employer_extractor = (
+            bio_employer_extractor if bio_employer_extractor is not None else BioEmployerExtractor()
         )
 
         self._profile_purpose_signal_extractor = (
@@ -196,11 +212,21 @@ class ProfileAnalysisService:
             kind=FactKind.COUNTRY,
         )
 
+        occupation_evidence = self._extract_occupation_evidence(
+            snapshot,
+        )
+
+        employer_evidence = self._extract_employer_evidence(
+            snapshot,
+        )
+
         all_evidence = (
             *birth_year_evidence,
             *relationship_evidence,
             *city_evidence,
             *country_evidence,
+            *occupation_evidence,
+            *employer_evidence,
         )
 
         birth_year_fact = self._fact_resolver.resolve(
@@ -223,11 +249,23 @@ class ProfileAnalysisService:
             country_evidence,
         )
 
+        occupation_fact = self._fact_resolver.resolve(
+            FactKind.OCCUPATION,
+            occupation_evidence,
+        )
+
+        employer_fact = self._fact_resolver.resolve(
+            FactKind.EMPLOYER,
+            employer_evidence,
+        )
+
         facts: tuple[Fact, ...] = (
             birth_year_fact,
             relationship_fact,
             city_fact,
             country_fact,
+            occupation_fact,
+            employer_fact,
         )
 
         relationship_observations = self._build_relationship_observations(
@@ -340,6 +378,56 @@ class ProfileAnalysisService:
         return self._bio_location_extractor.extract_for_kind(
             snapshot.bio,
             kind=kind,
+        )
+
+    def _extract_occupation_evidence(
+        self,
+        snapshot: ProfileSnapshot,
+    ) -> tuple[Evidence, ...]:
+        """
+        Extract explicit occupation evidence from profile identity fields.
+
+        Biography and display name are independent factual sources.
+        """
+
+        evidence: list[Evidence] = []
+
+        if snapshot.display_name is not None:
+            evidence.extend(
+                self._profile_occupation_extractor.extract(
+                    snapshot.display_name,
+                    source="display_name",
+                )
+            )
+
+        if snapshot.bio is not None:
+            evidence.extend(
+                self._profile_occupation_extractor.extract(
+                    snapshot.bio,
+                    source="bio",
+                )
+            )
+
+        return tuple(
+            evidence,
+        )
+
+    def _extract_employer_evidence(
+        self,
+        snapshot: ProfileSnapshot,
+    ) -> tuple[Evidence, ...]:
+        """
+        Extract explicit current-employer evidence.
+
+        Employer evidence currently comes only from biography text because
+        employer extraction requires explicit employment relation syntax.
+        """
+
+        if snapshot.bio is None:
+            return ()
+
+        return self._bio_employer_extractor.extract(
+            snapshot.bio,
         )
 
     def _build_relationship_observations(
