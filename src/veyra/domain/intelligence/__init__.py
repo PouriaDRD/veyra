@@ -11,6 +11,7 @@ from .enums import (
     HypothesisKind,
     HypothesisStatus,
     IntelligenceCategory,
+    LocationSignalKind,
     ProfilePurpose,
     RelationshipSignalKind,
     RelationshipStatus,
@@ -22,6 +23,13 @@ from .hypotheses import (
     HypothesisResult,
     ObservationPolarity,
 )
+from .location import (
+    DEFAULT_LOCATION_LEXICON,
+    LocationEntity,
+    LocationEntityKind,
+    LocationLexicon,
+)
+from .location_signals import LocationSignal
 from .registry import (
     HypothesisStrategyAlreadyRegisteredError,
     HypothesisStrategyNotFoundError,
@@ -38,6 +46,7 @@ from .text import normalize_text
 from .values import HypothesisScore
 
 __all__ = [
+    "DEFAULT_LOCATION_LEXICON",
     "ActivityLevel",
     "EvidenceNature",
     "EvidenceStrength",
@@ -56,6 +65,11 @@ __all__ = [
     "HypothesisStrategyNotFoundError",
     "HypothesisStrategyRegistry",
     "IntelligenceCategory",
+    "LocationEntity",
+    "LocationEntityKind",
+    "LocationLexicon",
+    "LocationSignal",
+    "LocationSignalKind",
     "ObservationPolarity",
     "ProfilePurpose",
     "RelationshipSignal",

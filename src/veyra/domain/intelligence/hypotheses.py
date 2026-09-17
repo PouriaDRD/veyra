@@ -20,9 +20,21 @@ class ObservationPolarity(StrEnum):
 @dataclass(frozen=True, slots=True)
 class HypothesisDefinition:
     """
-    Definition of one multi-value hypothesis.
+    Definition of one generic multi-value hypothesis.
 
-    The generic engine does not know what candidate values mean.
+    Closed-set hypotheses only accept values listed in ``allowed_values``.
+
+    Open-set hypotheses additionally accept normalized values discovered at
+    runtime through observations. This is required for domains such as:
+
+    - location
+    - occupation
+    - education
+    - language
+    - content interests
+
+    The inference engine never needs to understand the semantic meaning of
+    those values.
     """
 
     kind: HypothesisKind
@@ -30,6 +42,8 @@ class HypothesisDefinition:
     allowed_values: tuple[str, ...]
 
     unknown_value: str = "unknown"
+
+    allow_observed_values: bool = False
 
     def __post_init__(self) -> None:
         """Validate and normalize hypothesis definition."""
@@ -46,7 +60,11 @@ class HypothesisDefinition:
                 "allowed hypothesis values must not be empty.",
             )
 
-        if len(set(values)) != len(values):
+        if len(
+            set(
+                values,
+            )
+        ) != len(values):
             raise ValueError(
                 "allowed_values must be unique.",
             )
@@ -73,6 +91,55 @@ class HypothesisDefinition:
             self,
             "unknown_value",
             unknown_value,
+        )
+
+    def accepts_value(
+        self,
+        value: str,
+    ) -> bool:
+        """Return whether one candidate value is valid for this definition."""
+
+        normalized = value.strip()
+
+        if not normalized:
+            return False
+
+        if normalized in self.allowed_values:
+            return True
+
+        return self.allow_observed_values
+
+    def candidate_values(
+        self,
+        observations: tuple[
+            "HypothesisObservation",
+            ...,
+        ],
+    ) -> tuple[str, ...]:
+        """
+        Return deterministic candidate values for one evaluation.
+
+        Closed-set definitions always return their static candidate list.
+
+        Open-set definitions append normalized values discovered in
+        observations. Runtime values are sorted so inference remains
+        deterministic and independent from observation ordering.
+        """
+
+        if not self.allow_observed_values:
+            return self.allowed_values
+
+        discovered = sorted(
+            {
+                observation.target_value
+                for observation in observations
+                if (observation.target_value not in self.allowed_values)
+            }
+        )
+
+        return (
+            *self.allowed_values,
+            *discovered,
         )
 
 

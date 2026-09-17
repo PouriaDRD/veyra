@@ -127,3 +127,150 @@ def test_result_can_find_candidate() -> None:
         )
         is None
     )
+
+
+def test_open_set_definition_accepts_observed_values() -> None:
+    definition = HypothesisDefinition(
+        kind=HypothesisKind.LIKELY_LOCATION,
+        allowed_values=("unknown",),
+        unknown_value="unknown",
+        allow_observed_values=True,
+    )
+
+    observations = (
+        HypothesisObservation(
+            target_value="tehran",
+            polarity=ObservationPolarity.SUPPORT,
+            weight=0.8,
+            confidence=0.9,
+            source="location_signal",
+            explanation="Observed Tehran location evidence.",
+        ),
+    )
+
+    assert definition.candidate_values(
+        observations,
+    ) == (
+        "unknown",
+        "tehran",
+    )
+
+
+def test_open_set_candidate_values_include_observed_values() -> None:
+    definition = HypothesisDefinition(
+        kind=HypothesisKind.LIKELY_LOCATION,
+        allowed_values=("unknown",),
+        unknown_value="unknown",
+        allow_observed_values=True,
+    )
+
+    observations = (
+        HypothesisObservation(
+            target_value="tehran",
+            polarity=ObservationPolarity.SUPPORT,
+            weight=0.8,
+            confidence=0.9,
+            source="location_signal",
+            explanation="Observed Tehran location evidence.",
+        ),
+        HypothesisObservation(
+            target_value="karaj",
+            polarity=ObservationPolarity.SUPPORT,
+            weight=0.5,
+            confidence=0.8,
+            source="location_signal",
+            explanation="Observed Karaj location evidence.",
+        ),
+    )
+
+    assert definition.candidate_values(
+        observations,
+    ) == (
+        "unknown",
+        "karaj",
+        "tehran",
+    )
+
+
+def test_open_set_candidate_values_remove_duplicates() -> None:
+    definition = HypothesisDefinition(
+        kind=HypothesisKind.LIKELY_LOCATION,
+        allowed_values=("unknown",),
+        unknown_value="unknown",
+        allow_observed_values=True,
+    )
+
+    observations = (
+        HypothesisObservation(
+            target_value="tehran",
+            polarity=ObservationPolarity.SUPPORT,
+            weight=0.8,
+            confidence=0.9,
+            source="bio",
+            explanation="Explicit Tehran location evidence.",
+        ),
+        HypothesisObservation(
+            target_value="tehran",
+            polarity=ObservationPolarity.SUPPORT,
+            weight=0.6,
+            confidence=0.8,
+            source="geotag",
+            explanation="Observed Tehran geotag.",
+        ),
+    )
+
+    assert definition.candidate_values(
+        observations,
+    ) == (
+        "unknown",
+        "tehran",
+    )
+
+
+def test_open_set_candidate_values_are_order_invariant() -> None:
+    definition = HypothesisDefinition(
+        kind=HypothesisKind.LIKELY_LOCATION,
+        allowed_values=("unknown",),
+        unknown_value="unknown",
+        allow_observed_values=True,
+    )
+
+    tehran = HypothesisObservation(
+        target_value="tehran",
+        polarity=ObservationPolarity.SUPPORT,
+        weight=0.8,
+        confidence=0.9,
+        source="location_signal",
+        explanation="Observed Tehran location evidence.",
+    )
+
+    karaj = HypothesisObservation(
+        target_value="karaj",
+        polarity=ObservationPolarity.SUPPORT,
+        weight=0.5,
+        confidence=0.8,
+        source="location_signal",
+        explanation="Observed Karaj location evidence.",
+    )
+
+    forward = definition.candidate_values(
+        (
+            tehran,
+            karaj,
+        )
+    )
+
+    reversed_order = definition.candidate_values(
+        (
+            karaj,
+            tehran,
+        )
+    )
+
+    assert forward == reversed_order
+
+    assert forward == (
+        "unknown",
+        "karaj",
+        "tehran",
+    )

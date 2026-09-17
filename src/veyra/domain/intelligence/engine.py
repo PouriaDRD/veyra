@@ -91,6 +91,10 @@ class HypothesisEngine:
 
     Domain adapters convert facts/signals into generic observations before
     calling this engine.
+
+    The engine supports both:
+    - closed-set hypotheses
+    - open-set hypotheses with runtime-discovered candidate values
     """
 
     def __init__(
@@ -113,6 +117,10 @@ class HypothesisEngine:
 
         self._validate_observations(
             definition,
+            items,
+        )
+
+        candidate_values = definition.candidate_values(
             items,
         )
 
@@ -155,7 +163,7 @@ class HypothesisEngine:
                     )
                 ),
             )
-            for value in definition.allowed_values
+            for value in candidate_values
         )
 
         if not items:
@@ -208,16 +216,21 @@ class HypothesisEngine:
             ...,
         ],
     ) -> None:
-        """Reject observations targeting undefined candidate values."""
+        """
+        Validate observation candidate values.
 
-        allowed = set(
-            definition.allowed_values,
-        )
+        Closed-set definitions reject unknown candidate values.
+
+        Open-set definitions accept runtime-discovered values after standard
+        observation validation has normalized them.
+        """
 
         invalid = {
             observation.target_value
             for observation in observations
-            if observation.target_value not in allowed
+            if not definition.accepts_value(
+                observation.target_value,
+            )
         }
 
         if invalid:
@@ -290,7 +303,7 @@ class HypothesisEngine:
             key = (
                 observation.correlation_key
                 if observation.correlation_key is not None
-                else f"observation:{observation.id}"
+                else (f"observation:{observation.id}")
             )
 
             grouped[key].append(
@@ -326,8 +339,10 @@ class HypothesisEngine:
 
         ranked = sorted(
             non_unknown,
-            key=lambda candidate: candidate.score,
-            reverse=True,
+            key=lambda candidate: (
+                -candidate.score,
+                candidate.value,
+            ),
         )
 
         if not ranked:

@@ -72,6 +72,19 @@ class RelationshipStatus(StrEnum):
     UNKNOWN = "unknown"
 
 
+class LocationSignalKind(StrEnum):
+    """
+    Contextual or observed public location signals.
+
+    These signals are not location facts by themselves.
+    """
+
+    BIO_MENTION = "bio_mention"
+    GEOTAG = "geotag"
+    PROFILE_METADATA = "profile_metadata"
+    CAPTION_MENTION = "caption_mention"
+
+
 class RelationshipSignalKind(StrEnum):
     """
     Contextual relationship-themed signals.
