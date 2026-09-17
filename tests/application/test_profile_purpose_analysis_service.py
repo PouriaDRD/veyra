@@ -257,6 +257,7 @@ def test_purpose_analysis_does_not_create_profile_purpose_fact() -> None:
         FactKind.OCCUPATION,
         FactKind.EMPLOYER,
         FactKind.INSTITUTION,
+        FactKind.EDUCATION,
     }
 
 

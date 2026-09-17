@@ -202,4 +202,5 @@ def test_employer_fact_coexists_with_other_fact_categories() -> None:
         FactKind.OCCUPATION,
         FactKind.EMPLOYER,
         FactKind.INSTITUTION,
+        FactKind.EDUCATION,
     }
