@@ -6,6 +6,7 @@ from veyra.application.dto.analysis import ProfileAnalysisResult
 from veyra.domain.evidence import (
     BioBirthYearExtractor,
     BioEmployerExtractor,
+    BioInstitutionExtractor,
     Evidence,
     Fact,
     FactKind,
@@ -48,31 +49,11 @@ from veyra.domain.intelligence.relationship_strategy import (
     RelationshipHypothesisAdapter,
 )
 from veyra.domain.snapshots import ProfileSnapshot
-from veyra.domain.validation import (
-    AdultAgeValidator,
-    ValidationResult,
-)
+from veyra.domain.validation import AdultAgeValidator, ValidationResult
 
 
 class ProfileAnalysisService:
-    """
-    Analyze one immutable public profile snapshot.
-
-    Current capabilities:
-    - birth-year extraction and adult-age validation
-    - multilingual relationship fact extraction
-    - contextual relationship inference
-    - multilingual explicit city/country extraction
-    - contextual biography location signals
-    - likely-current-location inference
-    - explicit multilingual occupation fact extraction
-    - explicit multilingual employer fact extraction
-    - source-aware multilingual profile-purpose signal extraction
-    - profile-purpose inference from public biography and display name
-
-    Facts, contextual signals, hypotheses, and validation findings remain
-    semantically separate throughout the pipeline.
-    """
+    """Analyze one immutable public profile snapshot."""
 
     def __init__(
         self,
@@ -87,8 +68,9 @@ class ProfileAnalysisService:
         location_hypothesis_adapter: LocationHypothesisAdapter | None = None,
         profile_occupation_extractor: ProfileOccupationExtractor | None = None,
         bio_employer_extractor: BioEmployerExtractor | None = None,
+        bio_institution_extractor: BioInstitutionExtractor | None = None,
         profile_purpose_signal_extractor: ProfilePurposeSignalExtractor | None = None,
-        profile_purpose_hypothesis_adapter: (ProfilePurposeHypothesisAdapter | None) = None,
+        profile_purpose_hypothesis_adapter: ProfilePurposeHypothesisAdapter | None = None,
         hypothesis_service: HypothesisEvaluationService | None = None,
         fact_resolver: FactResolver | None = None,
         adult_age_validator: AdultAgeValidator | None = None,
@@ -98,75 +80,66 @@ class ProfileAnalysisService:
             if username_birth_year_extractor is not None
             else UsernameBirthYearExtractor()
         )
-
         self._bio_birth_year_extractor = (
             bio_birth_year_extractor
             if bio_birth_year_extractor is not None
             else BioBirthYearExtractor()
         )
-
         self._bio_relationship_status_extractor = (
             bio_relationship_status_extractor
             if bio_relationship_status_extractor is not None
             else BioRelationshipStatusExtractor()
         )
-
         self._relationship_signal_extractor = (
             relationship_signal_extractor
             if relationship_signal_extractor is not None
             else RelationshipSignalExtractor()
         )
-
         self._relationship_hypothesis_adapter = (
             relationship_hypothesis_adapter
             if relationship_hypothesis_adapter is not None
             else RelationshipHypothesisAdapter()
         )
-
         self._bio_location_extractor = (
             bio_location_extractor if bio_location_extractor is not None else BioLocationExtractor()
         )
-
         self._bio_location_signal_extractor = (
             bio_location_signal_extractor
             if bio_location_signal_extractor is not None
             else BioLocationSignalExtractor()
         )
-
         self._location_hypothesis_adapter = (
             location_hypothesis_adapter
             if location_hypothesis_adapter is not None
             else LocationHypothesisAdapter()
         )
-
         self._profile_occupation_extractor = (
             profile_occupation_extractor
             if profile_occupation_extractor is not None
             else ProfileOccupationExtractor()
         )
-
         self._bio_employer_extractor = (
             bio_employer_extractor if bio_employer_extractor is not None else BioEmployerExtractor()
         )
-
+        self._bio_institution_extractor = (
+            bio_institution_extractor
+            if bio_institution_extractor is not None
+            else BioInstitutionExtractor()
+        )
         self._profile_purpose_signal_extractor = (
             profile_purpose_signal_extractor
             if profile_purpose_signal_extractor is not None
             else ProfilePurposeSignalExtractor()
         )
-
         self._profile_purpose_hypothesis_adapter = (
             profile_purpose_hypothesis_adapter
             if profile_purpose_hypothesis_adapter is not None
             else ProfilePurposeHypothesisAdapter()
         )
-
         self._fact_resolver = fact_resolver if fact_resolver is not None else FactResolver()
-
         self._adult_age_validator = (
             adult_age_validator if adult_age_validator is not None else AdultAgeValidator()
         )
-
         self._hypothesis_service = (
             hypothesis_service
             if hypothesis_service is not None
@@ -187,38 +160,15 @@ class ProfileAnalysisService:
         *,
         reference_date: date,
     ) -> ProfileAnalysisResult:
-        """
-        Analyze one immutable profile snapshot.
+        """Analyze one immutable profile snapshot."""
 
-        ``reference_date`` remains explicit so age-related analysis is
-        deterministic and historically reproducible.
-        """
-
-        birth_year_evidence = self._extract_birth_year_evidence(
-            snapshot,
-        )
-
-        relationship_evidence = self._extract_relationship_evidence(
-            snapshot,
-        )
-
-        city_evidence = self._extract_location_evidence(
-            snapshot,
-            kind=FactKind.CITY,
-        )
-
-        country_evidence = self._extract_location_evidence(
-            snapshot,
-            kind=FactKind.COUNTRY,
-        )
-
-        occupation_evidence = self._extract_occupation_evidence(
-            snapshot,
-        )
-
-        employer_evidence = self._extract_employer_evidence(
-            snapshot,
-        )
+        birth_year_evidence = self._extract_birth_year_evidence(snapshot)
+        relationship_evidence = self._extract_relationship_evidence(snapshot)
+        city_evidence = self._extract_location_evidence(snapshot, kind=FactKind.CITY)
+        country_evidence = self._extract_location_evidence(snapshot, kind=FactKind.COUNTRY)
+        occupation_evidence = self._extract_occupation_evidence(snapshot)
+        employer_evidence = self._extract_employer_evidence(snapshot)
+        institution_evidence = self._extract_institution_evidence(snapshot)
 
         all_evidence = (
             *birth_year_evidence,
@@ -227,36 +177,30 @@ class ProfileAnalysisService:
             *country_evidence,
             *occupation_evidence,
             *employer_evidence,
+            *institution_evidence,
         )
 
         birth_year_fact = self._fact_resolver.resolve(
             FactKind.BIRTH_YEAR,
             birth_year_evidence,
         )
-
         relationship_fact = self._fact_resolver.resolve(
             FactKind.RELATIONSHIP_STATUS,
             relationship_evidence,
         )
-
-        city_fact = self._fact_resolver.resolve(
-            FactKind.CITY,
-            city_evidence,
-        )
-
-        country_fact = self._fact_resolver.resolve(
-            FactKind.COUNTRY,
-            country_evidence,
-        )
-
+        city_fact = self._fact_resolver.resolve(FactKind.CITY, city_evidence)
+        country_fact = self._fact_resolver.resolve(FactKind.COUNTRY, country_evidence)
         occupation_fact = self._fact_resolver.resolve(
             FactKind.OCCUPATION,
             occupation_evidence,
         )
-
         employer_fact = self._fact_resolver.resolve(
             FactKind.EMPLOYER,
             employer_evidence,
+        )
+        institution_fact = self._fact_resolver.resolve(
+            FactKind.INSTITUTION,
+            institution_evidence,
         )
 
         facts: tuple[Fact, ...] = (
@@ -266,18 +210,17 @@ class ProfileAnalysisService:
             country_fact,
             occupation_fact,
             employer_fact,
+            institution_fact,
         )
 
         relationship_observations = self._build_relationship_observations(
             snapshot=snapshot,
             relationship_fact=relationship_fact,
         )
-
         location_observations = self._build_location_observations(
             snapshot=snapshot,
             city_fact=city_fact,
         )
-
         profile_purpose_observations = self._build_profile_purpose_observations(
             snapshot=snapshot,
         )
@@ -288,33 +231,29 @@ class ProfileAnalysisService:
             *profile_purpose_observations,
         )
 
-        relationship_hypothesis = self._hypothesis_service.evaluate(
-            HypothesisKind.RELATIONSHIP_STATUS,
-            relationship_observations,
-        )
-
-        location_hypothesis = self._hypothesis_service.evaluate(
-            HypothesisKind.LIKELY_LOCATION,
-            location_observations,
-        )
-
-        profile_purpose_hypothesis = self._hypothesis_service.evaluate(
-            HypothesisKind.PROFILE_PURPOSE,
-            profile_purpose_observations,
-        )
-
         hypotheses: tuple[HypothesisResult, ...] = (
-            relationship_hypothesis,
-            location_hypothesis,
-            profile_purpose_hypothesis,
+            self._hypothesis_service.evaluate(
+                HypothesisKind.RELATIONSHIP_STATUS,
+                relationship_observations,
+            ),
+            self._hypothesis_service.evaluate(
+                HypothesisKind.LIKELY_LOCATION,
+                location_observations,
+            ),
+            self._hypothesis_service.evaluate(
+                HypothesisKind.PROFILE_PURPOSE,
+                profile_purpose_observations,
+            ),
         )
 
-        age_validation = self._adult_age_validator.validate(
-            birth_year_fact,
-            reference_date=reference_date,
+        validation = ValidationResult.combine(
+            (
+                self._adult_age_validator.validate(
+                    birth_year_fact,
+                    reference_date=reference_date,
+                ),
+            )
         )
-
-        validation = ValidationResult.combine((age_validation,))
 
         return ProfileAnalysisResult(
             snapshot_id=snapshot.id,
@@ -330,39 +269,19 @@ class ProfileAnalysisService:
         self,
         snapshot: ProfileSnapshot,
     ) -> tuple[Evidence, ...]:
-        """Extract all available birth-year evidence."""
-
         evidence: list[Evidence] = []
-
-        evidence.extend(
-            self._username_birth_year_extractor.extract(
-                snapshot.username,
-            )
-        )
-
+        evidence.extend(self._username_birth_year_extractor.extract(snapshot.username))
         if snapshot.bio is not None:
-            evidence.extend(
-                self._bio_birth_year_extractor.extract(
-                    snapshot.bio,
-                )
-            )
-
-        return tuple(
-            evidence,
-        )
+            evidence.extend(self._bio_birth_year_extractor.extract(snapshot.bio))
+        return tuple(evidence)
 
     def _extract_relationship_evidence(
         self,
         snapshot: ProfileSnapshot,
     ) -> tuple[Evidence, ...]:
-        """Extract explicit public relationship-status evidence."""
-
         if snapshot.bio is None:
             return ()
-
-        return self._bio_relationship_status_extractor.extract(
-            snapshot.bio,
-        )
+        return self._bio_relationship_status_extractor.extract(snapshot.bio)
 
     def _extract_location_evidence(
         self,
@@ -370,28 +289,15 @@ class ProfileAnalysisService:
         *,
         kind: FactKind,
     ) -> tuple[Evidence, ...]:
-        """Extract explicit current CITY or COUNTRY evidence."""
-
         if snapshot.bio is None:
             return ()
-
-        return self._bio_location_extractor.extract_for_kind(
-            snapshot.bio,
-            kind=kind,
-        )
+        return self._bio_location_extractor.extract_for_kind(snapshot.bio, kind=kind)
 
     def _extract_occupation_evidence(
         self,
         snapshot: ProfileSnapshot,
     ) -> tuple[Evidence, ...]:
-        """
-        Extract explicit occupation evidence from profile identity fields.
-
-        Biography and display name are independent factual sources.
-        """
-
         evidence: list[Evidence] = []
-
         if snapshot.display_name is not None:
             evidence.extend(
                 self._profile_occupation_extractor.extract(
@@ -399,7 +305,6 @@ class ProfileAnalysisService:
                     source="display_name",
                 )
             )
-
         if snapshot.bio is not None:
             evidence.extend(
                 self._profile_occupation_extractor.extract(
@@ -407,28 +312,23 @@ class ProfileAnalysisService:
                     source="bio",
                 )
             )
-
-        return tuple(
-            evidence,
-        )
+        return tuple(evidence)
 
     def _extract_employer_evidence(
         self,
         snapshot: ProfileSnapshot,
     ) -> tuple[Evidence, ...]:
-        """
-        Extract explicit current-employer evidence.
-
-        Employer evidence currently comes only from biography text because
-        employer extraction requires explicit employment relation syntax.
-        """
-
         if snapshot.bio is None:
             return ()
+        return self._bio_employer_extractor.extract(snapshot.bio)
 
-        return self._bio_employer_extractor.extract(
-            snapshot.bio,
-        )
+    def _extract_institution_evidence(
+        self,
+        snapshot: ProfileSnapshot,
+    ) -> tuple[Evidence, ...]:
+        if snapshot.bio is None:
+            return ()
+        return self._bio_institution_extractor.extract(snapshot.bio)
 
     def _build_relationship_observations(
         self,
@@ -436,18 +336,9 @@ class ProfileAnalysisService:
         snapshot: ProfileSnapshot,
         relationship_fact: Fact,
     ) -> tuple[HypothesisObservation, ...]:
-        """Build relationship hypothesis observations."""
-
-        signals: tuple[
-            RelationshipSignal,
-            ...,
-        ] = ()
-
+        signals: tuple[RelationshipSignal, ...] = ()
         if snapshot.bio is not None:
-            signals = self._relationship_signal_extractor.extract(
-                snapshot.bio,
-            )
-
+            signals = self._relationship_signal_extractor.extract(snapshot.bio)
         return self._relationship_hypothesis_adapter.combine(
             fact=relationship_fact,
             signals=signals,
@@ -459,18 +350,9 @@ class ProfileAnalysisService:
         snapshot: ProfileSnapshot,
         city_fact: Fact,
     ) -> tuple[HypothesisObservation, ...]:
-        """Build likely-current-location hypothesis observations."""
-
-        signals: tuple[
-            LocationSignal,
-            ...,
-        ] = ()
-
+        signals: tuple[LocationSignal, ...] = ()
         if snapshot.bio is not None:
-            signals = self._bio_location_signal_extractor.extract(
-                snapshot.bio,
-            )
-
+            signals = self._bio_location_signal_extractor.extract(snapshot.bio)
         return self._location_hypothesis_adapter.combine(
             city_fact=city_fact,
             signals=signals,
@@ -481,16 +363,6 @@ class ProfileAnalysisService:
         *,
         snapshot: ProfileSnapshot,
     ) -> tuple[HypothesisObservation, ...]:
-        """
-        Build source-aware profile-purpose observations.
-
-        Biography and display name are independent underlying sources.
-
-        Signals produced from one field share a correlation key so multiple
-        semantic markers from one field cannot artificially increase overall
-        hypothesis confidence.
-        """
-
         observations: list[HypothesisObservation] = []
 
         if snapshot.display_name is not None:
@@ -498,12 +370,11 @@ class ProfileAnalysisService:
                 snapshot.display_name,
                 source="display_name",
             )
-
             observations.extend(
                 self._profile_purpose_hypothesis_adapter.from_signals(
                     display_name_signals,
                     source="display_name",
-                    correlation_key=(f"profile-purpose:{snapshot.id}:display-name"),
+                    correlation_key=f"profile-purpose:{snapshot.id}:display-name",
                 )
             )
 
@@ -512,18 +383,15 @@ class ProfileAnalysisService:
                 snapshot.bio,
                 source="bio",
             )
-
             observations.extend(
                 self._profile_purpose_hypothesis_adapter.from_signals(
                     bio_signals,
                     source="bio",
-                    correlation_key=(f"profile-purpose:{snapshot.id}:bio"),
+                    correlation_key=f"profile-purpose:{snapshot.id}:bio",
                 )
             )
 
-        return tuple(
-            observations,
-        )
+        return tuple(observations)
 
     def _extract_profile_purpose_signals(
         self,
@@ -531,9 +399,4 @@ class ProfileAnalysisService:
         *,
         source: ProfilePurposeTextSource,
     ) -> tuple[ProfilePurposeSignal, ...]:
-        """Extract source-aware normalized profile-purpose signals."""
-
-        return self._profile_purpose_signal_extractor.extract(
-            text,
-            source=source,
-        )
+        return self._profile_purpose_signal_extractor.extract(text, source=source)

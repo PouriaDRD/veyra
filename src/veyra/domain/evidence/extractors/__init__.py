@@ -5,6 +5,7 @@ from .birth_year import (
     UsernameBirthYearExtractor,
     normalize_digits,
 )
+from .education import BioInstitutionExtractor
 from .location import BioLocationExtractor
 from .professional import (
     DEFAULT_OCCUPATION_LEXICON,
@@ -22,6 +23,7 @@ __all__ = [
     "DEFAULT_OCCUPATION_LEXICON",
     "BioBirthYearExtractor",
     "BioEmployerExtractor",
+    "BioInstitutionExtractor",
     "BioLocationExtractor",
     "BioRelationshipStatusExtractor",
     "OccupationEntry",

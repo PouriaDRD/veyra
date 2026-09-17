@@ -55,7 +55,6 @@ def purpose_for(
     )
 
     assert hypothesis is not None
-
     return hypothesis
 
 
@@ -65,7 +64,6 @@ def test_professional_bio_produces_professional_hypothesis() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.PROFESSIONAL.value
-
     assert hypothesis.status is HypothesisStatus.PROBABLE
 
 
@@ -75,7 +73,6 @@ def test_persian_professional_bio_is_supported() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.PROFESSIONAL.value
-
     assert hypothesis.status is HypothesisStatus.PROBABLE
 
 
@@ -85,7 +82,6 @@ def test_creator_bio_produces_creator_hypothesis() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.CREATOR.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -95,7 +91,6 @@ def test_persian_creator_bio_is_supported() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.CREATOR.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -105,7 +100,6 @@ def test_business_bio_produces_business_hypothesis() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.BUSINESS.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -115,7 +109,6 @@ def test_persian_business_bio_is_supported() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.BUSINESS.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -125,7 +118,6 @@ def test_organization_bio_produces_organization_hypothesis() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.ORGANIZATION.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -135,7 +127,6 @@ def test_personal_profile_marker_is_supported() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.PERSONAL.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -146,7 +137,6 @@ def test_display_name_can_supply_profile_purpose_signal() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.CREATOR.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -157,7 +147,6 @@ def test_unrelated_profile_text_returns_unknown_purpose() -> None:
     )
 
     assert hypothesis.status is HypothesisStatus.UNKNOWN
-
     assert hypothesis.best_value == ProfilePurpose.UNKNOWN.value
 
 
@@ -175,14 +164,13 @@ def test_creator_and_business_same_bio_remain_ambiguous() -> None:
     )
 
     assert hypothesis.status is HypothesisStatus.AMBIGUOUS
-
     assert hypothesis.best_value == ProfilePurpose.UNKNOWN.value
 
 
 def test_relationship_location_and_purpose_hypotheses_coexist() -> None:
     result = ProfileAnalysisService().analyze(
         build_snapshot(
-            bio=("متاهل | ساکن تهران | مهندس نرم افزار"),
+            bio="متاهل | ساکن تهران | مهندس نرم افزار",
         ),
         reference_date=REFERENCE_DATE,
     )
@@ -190,11 +178,9 @@ def test_relationship_location_and_purpose_hypotheses_coexist() -> None:
     relationship = result.hypothesis_for(
         HypothesisKind.RELATIONSHIP_STATUS,
     )
-
     location = result.hypothesis_for(
         HypothesisKind.LIKELY_LOCATION,
     )
-
     purpose = result.hypothesis_for(
         HypothesisKind.PROFILE_PURPOSE,
     )
@@ -202,10 +188,8 @@ def test_relationship_location_and_purpose_hypotheses_coexist() -> None:
     assert relationship is not None
     assert location is not None
     assert purpose is not None
-
     assert relationship.best_value == "married"
     assert location.best_value == "tehran"
-
     assert purpose.best_value == ProfilePurpose.PROFESSIONAL.value
 
 
@@ -226,7 +210,6 @@ def test_bio_purpose_observations_share_one_correlation_group() -> None:
     )
 
     assert len(observations) == 2
-
     assert {observation.correlation_key for observation in observations} == {
         f"profile-purpose:{snapshot.id}:bio",
     }
@@ -250,7 +233,6 @@ def test_display_name_and_bio_are_independent_correlation_sources() -> None:
     )
 
     assert len(observations) == 2
-
     assert {observation.correlation_key for observation in observations} == {
         f"profile-purpose:{snapshot.id}:display-name",
         f"profile-purpose:{snapshot.id}:bio",
@@ -274,12 +256,8 @@ def test_purpose_analysis_does_not_create_profile_purpose_fact() -> None:
         FactKind.COUNTRY,
         FactKind.OCCUPATION,
         FactKind.EMPLOYER,
+        FactKind.INSTITUTION,
     }
-
-
-# ============================================================
-# BUSINESS FALSE-POSITIVE REGRESSIONS
-# ============================================================
 
 
 def test_business_student_does_not_become_business_profile() -> None:
@@ -288,7 +266,6 @@ def test_business_student_does_not_become_business_profile() -> None:
     )
 
     assert hypothesis.status is HypothesisStatus.UNKNOWN
-
     assert hypothesis.best_value == ProfilePurpose.UNKNOWN.value
 
 
@@ -298,7 +275,6 @@ def test_business_analyst_remains_professional() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.PROFESSIONAL.value
-
     assert hypothesis.status is HypothesisStatus.PROBABLE
 
 
@@ -324,7 +300,6 @@ def test_company_display_name_can_identify_business_profile() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.BUSINESS.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -336,18 +311,12 @@ def test_persian_company_display_name_can_identify_business_profile() -> None:
     assert hypothesis.best_value == ProfilePurpose.BUSINESS.value
 
 
-# ============================================================
-# ORGANIZATION FALSE-POSITIVE REGRESSIONS
-# ============================================================
-
-
 def test_university_student_bio_does_not_make_profile_organization() -> None:
     hypothesis = purpose_for(
         bio="Student at Tehran University",
     )
 
     assert hypothesis.status is HypothesisStatus.UNKNOWN
-
     assert hypothesis.best_value == ProfilePurpose.UNKNOWN.value
 
 
@@ -357,7 +326,6 @@ def test_university_display_name_can_identify_organization() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.ORGANIZATION.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -375,7 +343,6 @@ def test_persian_university_student_bio_does_not_make_organization() -> None:
     )
 
     assert hypothesis.status is HypothesisStatus.UNKNOWN
-
     assert hypothesis.best_value == ProfilePurpose.UNKNOWN.value
 
 
@@ -387,22 +354,15 @@ def test_persian_official_university_bio_can_identify_organization() -> None:
     assert hypothesis.best_value == ProfilePurpose.ORGANIZATION.value
 
 
-# ============================================================
-# SOURCE-AWARE INTEGRATION
-# ============================================================
-
-
 def test_same_institution_text_has_different_semantics_by_field() -> None:
     bio_hypothesis = purpose_for(
         bio="Tehran University",
     )
-
     display_name_hypothesis = purpose_for(
         display_name="Tehran University",
     )
 
     assert bio_hypothesis.status is HypothesisStatus.UNKNOWN
-
     assert display_name_hypothesis.best_value == ProfilePurpose.ORGANIZATION.value
 
 
@@ -410,19 +370,12 @@ def test_same_company_text_has_different_semantics_by_field() -> None:
     bio_hypothesis = purpose_for(
         bio="Acme Company",
     )
-
     display_name_hypothesis = purpose_for(
         display_name="Acme Company",
     )
 
     assert bio_hypothesis.status is HypothesisStatus.UNKNOWN
-
     assert display_name_hypothesis.best_value == ProfilePurpose.BUSINESS.value
-
-
-# ============================================================
-# MIXED PURPOSE SEMANTICS
-# ============================================================
 
 
 def test_independent_creator_display_name_and_business_bio_become_mixed() -> None:
@@ -432,7 +385,6 @@ def test_independent_creator_display_name_and_business_bio_become_mixed() -> Non
     )
 
     assert hypothesis.best_value == ProfilePurpose.MIXED.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -443,7 +395,6 @@ def test_independent_professional_display_name_and_creator_bio_become_mixed() ->
     )
 
     assert hypothesis.best_value == ProfilePurpose.MIXED.value
-
     assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
 
 
@@ -479,7 +430,6 @@ def test_same_purpose_across_display_name_and_bio_is_not_mixed() -> None:
     )
 
     assert hypothesis.best_value == ProfilePurpose.CREATOR.value
-
     assert hypothesis.best_value != ProfilePurpose.MIXED.value
 
 
@@ -503,16 +453,8 @@ def test_mixed_hypothesis_retains_two_independent_supporting_observations() -> N
     )
 
     assert mixed is not None
-
-    assert (
-        len(
-            mixed.supporting_observations,
-        )
-        == 2
-    )
-
+    assert len(mixed.supporting_observations) == 2
     assert {observation.correlation_key for observation in mixed.supporting_observations}
-
     assert len({observation.correlation_key for observation in mixed.supporting_observations}) == 2
 
 
@@ -531,5 +473,4 @@ def test_mixed_explanations_retain_original_component_semantics() -> None:
     explanations = {observation.explanation for observation in mixed.supporting_observations}
 
     assert any("'creator'" in explanation for explanation in explanations)
-
     assert any("'business'" in explanation for explanation in explanations)

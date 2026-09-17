@@ -4,11 +4,7 @@ from datetime import date
 from uuid import uuid4
 
 from veyra.application import ProfileAnalysisService
-from veyra.domain.evidence import (
-    Fact,
-    FactKind,
-    FactStatus,
-)
+from veyra.domain.evidence import Fact, FactKind, FactStatus
 from veyra.domain.snapshots import ProfileSnapshot
 
 REFERENCE_DATE = date(
@@ -133,7 +129,7 @@ def test_location_is_not_employer() -> None:
 
 def test_two_different_explicit_employers_create_conflicted_fact() -> None:
     fact = employer_fact_for(
-        bio=("Works at Acme | Software Engineer at Veyra"),
+        bio="Works at Acme | Software Engineer at Veyra",
     )
 
     assert fact.status is FactStatus.CONFLICTED
@@ -147,12 +143,11 @@ def test_two_different_explicit_employers_create_conflicted_fact() -> None:
 
 def test_duplicate_same_employer_does_not_conflict() -> None:
     fact = employer_fact_for(
-        bio=("Works at Acme | Software Engineer at Acme"),
+        bio="Works at Acme | Software Engineer at Acme",
     )
 
     assert fact.status is FactStatus.SUPPORTED
     assert fact.value == "acme"
-
     assert len(fact.evidence) == 1
 
 
@@ -192,7 +187,7 @@ def test_employer_evidence_is_in_flat_analysis_evidence() -> None:
 def test_employer_fact_coexists_with_other_fact_categories() -> None:
     result = ProfileAnalysisService().analyze(
         build_snapshot(
-            bio=("متاهل | ساکن تهران | مهندس نرم افزار در دیجی کالا"),
+            bio="متاهل | ساکن تهران | مهندس نرم افزار در دیجی کالا",
         ),
         reference_date=REFERENCE_DATE,
     )
@@ -206,4 +201,5 @@ def test_employer_fact_coexists_with_other_fact_categories() -> None:
         FactKind.COUNTRY,
         FactKind.OCCUPATION,
         FactKind.EMPLOYER,
+        FactKind.INSTITUTION,
     }

@@ -169,7 +169,7 @@ def test_specific_role_does_not_conflict_with_generic_nested_role() -> None:
 def test_occupation_fact_coexists_with_other_facts() -> None:
     result = ProfileAnalysisService().analyze(
         build_snapshot(
-            bio=("متاهل | ساکن تهران | مهندس نرم افزار"),
+            bio="متاهل | ساکن تهران | مهندس نرم افزار",
         ),
         reference_date=REFERENCE_DATE,
     )
@@ -183,6 +183,7 @@ def test_occupation_fact_coexists_with_other_facts() -> None:
         FactKind.COUNTRY,
         FactKind.OCCUPATION,
         FactKind.EMPLOYER,
+        FactKind.INSTITUTION,
     }
 
 
@@ -197,17 +198,14 @@ def test_occupation_evidence_is_in_flat_analysis_evidence() -> None:
     occupation_evidence = tuple(
         item
         for item in result.evidence
-        if (
-            item.extractor
-            in {
-                "bio_occupation_explicit",
-                "display_name_occupation_explicit",
-            }
-        )
+        if item.extractor
+        in {
+            "bio_occupation_explicit",
+            "display_name_occupation_explicit",
+        }
     )
 
     assert len(occupation_evidence) == 1
-
     assert occupation_evidence[0].normalized_value == "software engineer"
 
 
