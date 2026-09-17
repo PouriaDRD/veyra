@@ -35,6 +35,7 @@ from veyra.domain.intelligence.location_strategy import (
 )
 from veyra.domain.intelligence.profile_purpose_signals import (
     ProfilePurposeSignalExtractor,
+    ProfilePurposeTextSource,
 )
 from veyra.domain.intelligence.profile_purpose_strategy import (
     PROFILE_PURPOSE_HYPOTHESIS_STRATEGY,
@@ -62,7 +63,7 @@ class ProfileAnalysisService:
     - multilingual explicit city/country extraction
     - contextual biography location signals
     - likely-current-location inference
-    - multilingual profile-purpose signal extraction
+    - source-aware multilingual profile-purpose signal extraction
     - profile-purpose inference from public biography and display name
 
     Facts, contextual signals, hypotheses, and validation findings remain
@@ -393,13 +394,13 @@ class ProfileAnalysisService:
         snapshot: ProfileSnapshot,
     ) -> tuple[HypothesisObservation, ...]:
         """
-        Build profile-purpose observations from public text fields.
+        Build source-aware profile-purpose observations.
 
-        Biography and display name are treated as separate underlying sources.
+        Biography and display name are independent underlying sources.
 
-        Signals extracted from the same field share one correlation key so a
-        single field containing several markers cannot artificially increase
-        overall inference confidence.
+        Signals produced from one field share a correlation key so multiple
+        semantic markers from one field cannot artificially increase overall
+        hypothesis confidence.
         """
 
         observations: list[HypothesisObservation] = []
@@ -407,6 +408,7 @@ class ProfileAnalysisService:
         if snapshot.display_name is not None:
             display_name_signals = self._extract_profile_purpose_signals(
                 snapshot.display_name,
+                source="display_name",
             )
 
             observations.extend(
@@ -420,6 +422,7 @@ class ProfileAnalysisService:
         if snapshot.bio is not None:
             bio_signals = self._extract_profile_purpose_signals(
                 snapshot.bio,
+                source="bio",
             )
 
             observations.extend(
@@ -437,9 +440,12 @@ class ProfileAnalysisService:
     def _extract_profile_purpose_signals(
         self,
         text: str,
+        *,
+        source: ProfilePurposeTextSource,
     ) -> tuple[ProfilePurposeSignal, ...]:
-        """Extract normalized profile-purpose signals from one field."""
+        """Extract source-aware normalized profile-purpose signals."""
 
         return self._profile_purpose_signal_extractor.extract(
             text,
+            source=source,
         )

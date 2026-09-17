@@ -1,4 +1,4 @@
-"""Tests for multilingual profile-purpose signal extraction."""
+"""Tests for source-aware multilingual profile-purpose extraction."""
 
 import pytest
 
@@ -10,6 +10,8 @@ from veyra.domain.intelligence.profile_purpose_signals import (
 
 def purposes(
     text: str,
+    *,
+    source: str = "bio",
 ) -> set[ProfilePurpose]:
     """Extract supported purpose candidates."""
 
@@ -17,6 +19,7 @@ def purposes(
         signal.purpose
         for signal in ProfilePurposeSignalExtractor().extract(
             text,
+            source=source,  # type: ignore[arg-type]
         )
     }
 
@@ -150,23 +153,25 @@ def test_unrelated_text_produces_no_signal(
         "engineering notes",
         "designerly",
         "storehouse",
-        "shopify developer",
     ),
 )
 def test_markers_do_not_match_inside_longer_words(
     text: str,
 ) -> None:
-    extracted = purposes(
-        text,
+    assert (
+        purposes(
+            text,
+        )
+        == set()
     )
 
-    if text == "shopify developer":
-        assert extracted == {
-            ProfilePurpose.PROFESSIONAL,
-        }
-        return
 
-    assert extracted == set()
+def test_shopify_does_not_match_shop_but_developer_still_matches() -> None:
+    assert purposes(
+        "Shopify Developer",
+    ) == {
+        ProfilePurpose.PROFESSIONAL,
+    }
 
 
 def test_signal_retains_context() -> None:
@@ -196,3 +201,220 @@ def test_mixed_persian_english_input_is_supported() -> None:
         ProfilePurpose.PROFESSIONAL,
         ProfilePurpose.CREATOR,
     }
+
+
+# ============================================================
+# BUSINESS HARDENING
+# ============================================================
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Business student",
+        "MBA | Business student",
+        "Studying business",
+        "I work at Acme Company",
+        "Employee at Acme Company",
+    ),
+)
+def test_generic_business_words_in_bio_do_not_create_business_signal(
+    text: str,
+) -> None:
+    assert ProfilePurpose.BUSINESS not in purposes(
+        text,
+        source="bio",
+    )
+
+
+def test_business_analyst_is_professional_not_business() -> None:
+    extracted = purposes(
+        "Business Analyst",
+        source="bio",
+    )
+
+    assert extracted == {
+        ProfilePurpose.PROFESSIONAL,
+    }
+
+
+def test_brand_designer_is_professional_not_business() -> None:
+    extracted = purposes(
+        "Brand Designer",
+        source="bio",
+    )
+
+    assert extracted == {
+        ProfilePurpose.PROFESSIONAL,
+    }
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Online Shop",
+        "Online Store",
+        "Official Store",
+        "DM for order",
+        "Orders open",
+        "فروشگاه",
+        "فروش آنلاین",
+        "ثبت سفارش",
+        "برای سفارش دایرکت",
+    ),
+)
+def test_strong_commercial_intent_in_bio_is_business(
+    text: str,
+) -> None:
+    assert ProfilePurpose.BUSINESS in purposes(
+        text,
+        source="bio",
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Acme Company",
+        "Acme Brand",
+        "Acme Store",
+        "فروشگاه ویرا",
+        "شرکت ویرا",
+        "برند ویرا",
+    ),
+)
+def test_display_name_can_identify_business(
+    text: str,
+) -> None:
+    assert ProfilePurpose.BUSINESS in purposes(
+        text,
+        source="display_name",
+    )
+
+
+# ============================================================
+# ORGANIZATION HARDENING
+# ============================================================
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Student at Tehran University",
+        "Researcher at Tehran University",
+        "Studying at Tehran University",
+        "Teacher at Example Academy",
+        "دانشجوی دانشگاه تهران",
+        "استاد دانشگاه تهران",
+    ),
+)
+def test_institution_mentions_in_bio_do_not_create_organization_signal(
+    text: str,
+) -> None:
+    assert ProfilePurpose.ORGANIZATION not in purposes(
+        text,
+        source="bio",
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Tehran University",
+        "Example Institute",
+        "Open Learning Academy",
+        "دانشگاه تهران",
+        "موسسه ویرا",
+        "آکادمی ویرا",
+    ),
+)
+def test_display_name_can_identify_organization(
+    text: str,
+) -> None:
+    assert ProfilePurpose.ORGANIZATION in purposes(
+        text,
+        source="display_name",
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Official account of Tehran University",
+        "Official page of Example Institute",
+        "صفحه رسمی دانشگاه تهران",
+        "پیج رسمی موسسه ویرا",
+    ),
+)
+def test_official_organization_bio_is_supported(
+    text: str,
+) -> None:
+    assert ProfilePurpose.ORGANIZATION in purposes(
+        text,
+        source="bio",
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Nonprofit Foundation",
+        "Nonprofit Organization",
+        "NGO",
+        "بنیاد خیریه",
+        "موسسه خیریه",
+        "سازمان مردم نهاد",
+    ),
+)
+def test_strong_organization_identity_is_supported_in_bio(
+    text: str,
+) -> None:
+    assert ProfilePurpose.ORGANIZATION in purposes(
+        text,
+        source="bio",
+    )
+
+
+# ============================================================
+# SOURCE CONTRACT
+# ============================================================
+
+
+def test_default_source_is_bio() -> None:
+    assert (
+        ProfilePurposeSignalExtractor().extract(
+            "Tehran University",
+        )
+        == ()
+    )
+
+
+def test_display_name_and_bio_have_different_semantics() -> None:
+    extractor = ProfilePurposeSignalExtractor()
+
+    bio = extractor.extract(
+        "Tehran University",
+        source="bio",
+    )
+
+    display_name = extractor.extract(
+        "Tehran University",
+        source="display_name",
+    )
+
+    assert bio == ()
+
+    assert {signal.purpose for signal in display_name} == {
+        ProfilePurpose.ORGANIZATION,
+    }
+
+
+def test_rejects_unknown_source() -> None:
+    with pytest.raises(
+        ValueError,
+        match="source",
+    ):
+        ProfilePurposeSignalExtractor().extract(
+            "Online Shop",
+            source="caption",  # type: ignore[arg-type]
+        )
