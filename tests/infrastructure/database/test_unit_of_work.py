@@ -12,6 +12,9 @@ from veyra.infrastructure.database import (
     create_database_engine,
     create_session_factory,
 )
+from veyra.infrastructure.database.repositories import (
+    SqlAlchemyScoreSnapshotRepository,
+)
 
 
 def test_unit_of_work_commits_successful_transaction(
@@ -147,5 +150,24 @@ def test_domain_repositories_share_one_transaction(
             )
 
             assert stored is None
+    finally:
+        engine.dispose()
+
+
+def test_unit_of_work_exposes_score_snapshot_repository(
+    tmp_path: Path,
+) -> None:
+    engine = create_database_engine(
+        tmp_path / "veyra.db",
+    )
+
+    session_factory = create_session_factory(engine)
+
+    try:
+        with SqlAlchemyUnitOfWork(session_factory) as unit_of_work:
+            assert isinstance(
+                unit_of_work.score_snapshots,
+                SqlAlchemyScoreSnapshotRepository,
+            )
     finally:
         engine.dispose()

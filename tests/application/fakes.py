@@ -6,6 +6,7 @@ from uuid import UUID
 
 from veyra.domain.media import MediaAsset
 from veyra.domain.profiles import Profile, SocialPlatform
+from veyra.domain.scoring import ScoreSnapshot
 from veyra.domain.searches import Search, SearchCandidate
 from veyra.domain.snapshots import ProfileSnapshot
 
@@ -185,6 +186,48 @@ class FakeCandidateRepository:
         self.items[candidate.id] = candidate
 
 
+class FakeScoreSnapshotRepository:
+    """In-memory append-only score snapshot repository."""
+
+    def __init__(self) -> None:
+        self.items: dict[UUID, ScoreSnapshot] = {}
+
+    def add(
+        self,
+        snapshot: ScoreSnapshot,
+    ) -> None:
+        if snapshot.id in self.items:
+            raise ValueError(
+                f"ScoreSnapshot {snapshot.id} already exists.",
+            )
+
+        self.items[snapshot.id] = snapshot
+
+    def get_by_id(
+        self,
+        snapshot_id: UUID,
+    ) -> ScoreSnapshot | None:
+        return self.items.get(snapshot_id)
+
+    def list_for_candidate(
+        self,
+        candidate_id: UUID,
+    ) -> list[ScoreSnapshot]:
+        snapshots = [
+            snapshot for snapshot in self.items.values() if snapshot.candidate_id == candidate_id
+        ]
+
+        snapshots.sort(
+            key=lambda snapshot: (
+                snapshot.created_at,
+                snapshot.id,
+            ),
+            reverse=True,
+        )
+
+        return snapshots
+
+
 class FakeMediaAssetRepository:
     """In-memory media repository."""
 
@@ -239,6 +282,7 @@ class FakeUnitOfWork:
         self.snapshots = FakeSnapshotRepository()
         self.searches = FakeSearchRepository()
         self.candidates = FakeCandidateRepository()
+        self.score_snapshots = FakeScoreSnapshotRepository()
         self.media_assets = FakeMediaAssetRepository()
 
         self.commit_count = 0
@@ -250,6 +294,7 @@ class FakeUnitOfWork:
                 dict[UUID, ProfileSnapshot],
                 dict[UUID, Search],
                 dict[UUID, SearchCandidate],
+                dict[UUID, ScoreSnapshot],
                 dict[UUID, MediaAsset],
             ]
             | None
@@ -266,6 +311,7 @@ class FakeUnitOfWork:
             deepcopy(self.snapshots.items),
             deepcopy(self.searches.items),
             deepcopy(self.candidates.items),
+            deepcopy(self.score_snapshots.items),
             deepcopy(self.media_assets.items),
         )
 
@@ -311,6 +357,7 @@ class FakeUnitOfWork:
             snapshots,
             searches,
             candidates,
+            score_snapshots,
             media_assets,
         ) = self._transaction_snapshot
 
@@ -318,6 +365,7 @@ class FakeUnitOfWork:
         self.snapshots.items = snapshots
         self.searches.items = searches
         self.candidates.items = candidates
+        self.score_snapshots.items = score_snapshots
         self.media_assets.items = media_assets
 
         self.rollback_count += 1

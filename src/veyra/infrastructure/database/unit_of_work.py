@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from .repositories import (
     SqlAlchemyMediaAssetRepository,
     SqlAlchemyProfileRepository,
+    SqlAlchemyScoreSnapshotRepository,
     SqlAlchemySearchCandidateRepository,
     SqlAlchemySearchRepository,
     SqlAlchemySnapshotRepository,
@@ -33,6 +34,7 @@ class SqlAlchemyUnitOfWork:
         self.snapshots: SqlAlchemySnapshotRepository
         self.searches: SqlAlchemySearchRepository
         self.candidates: SqlAlchemySearchCandidateRepository
+        self.score_snapshots: SqlAlchemyScoreSnapshotRepository
         self.media_assets: SqlAlchemyMediaAssetRepository
 
     @property
@@ -76,6 +78,10 @@ class SqlAlchemyUnitOfWork:
         )
 
         self.candidates = SqlAlchemySearchCandidateRepository(
+            session,
+        )
+
+        self.score_snapshots = SqlAlchemyScoreSnapshotRepository(
             session,
         )
 

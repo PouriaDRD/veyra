@@ -6,6 +6,7 @@ from typing import Protocol, Self
 from .repositories import (
     MediaAssetRepository,
     ProfileRepository,
+    ScoreSnapshotRepository,
     SearchCandidateRepository,
     SearchRepository,
     SnapshotRepository,
@@ -38,6 +39,11 @@ class UnitOfWork(Protocol):
     @property
     def candidates(self) -> SearchCandidateRepository:
         """Return the search-candidate repository."""
+        ...
+
+    @property
+    def score_snapshots(self) -> ScoreSnapshotRepository:
+        """Return the scoring audit repository."""
         ...
 
     @property

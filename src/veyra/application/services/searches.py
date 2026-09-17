@@ -18,6 +18,7 @@ from veyra.application.scoring import (
     CandidateScoringResult,
     ProfileScoringService,
 )
+from veyra.domain.scoring import ScoreSnapshot
 from veyra.domain.searches import (
     Search,
     SearchCandidate,
@@ -236,11 +237,11 @@ class SearchService:
         policy: AnalysisScoringPolicy,
     ) -> CandidateScoringResult:
         """
-        Score one analyzed candidate from its analysis result and policy.
+        Score one analyzed candidate and persist its explainability audit record.
 
-        The analysis must belong to the exact profile snapshot attached to the
-        candidate. Unscorable results leave the candidate in its current
-        analyzed state instead of persisting an artificial zero score.
+        Candidate mutation and audit snapshot insertion share one Unit of Work,
+        so successful scoring is atomic. Unscorable results leave the candidate
+        analyzed and do not create an artificial zero or audit record.
         """
 
         with self._unit_of_work as unit_of_work:
@@ -264,20 +265,31 @@ class SearchService:
                     candidate=candidate,
                     score_result=score_result,
                     persisted=False,
+                    audit_snapshot=None,
                 )
 
             candidate.set_score(
                 score_result.score,
             )
 
+            audit_snapshot = ScoreSnapshot.from_result(
+                candidate_id=candidate.id,
+                profile_snapshot_id=analysis.snapshot_id,
+                result=score_result,
+            )
+
             unit_of_work.candidates.update(
                 candidate,
+            )
+            unit_of_work.score_snapshots.add(
+                audit_snapshot,
             )
 
             return CandidateScoringResult(
                 candidate=candidate,
                 score_result=score_result,
                 persisted=True,
+                audit_snapshot=audit_snapshot,
             )
 
     def filter_candidate(

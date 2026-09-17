@@ -5,6 +5,7 @@ from uuid import UUID
 
 from veyra.domain.media import MediaAsset
 from veyra.domain.profiles import Profile, SocialPlatform
+from veyra.domain.scoring import ScoreSnapshot
 from veyra.domain.searches import Search, SearchCandidate
 from veyra.domain.snapshots import ProfileSnapshot
 
@@ -142,6 +143,31 @@ class SearchCandidateRepository(Protocol):
         ...
 
 
+class ScoreSnapshotRepository(Protocol):
+    """Append-only persistence contract for scoring audit snapshots."""
+
+    def add(
+        self,
+        snapshot: ScoreSnapshot,
+    ) -> None:
+        """Persist one immutable score snapshot."""
+        ...
+
+    def get_by_id(
+        self,
+        snapshot_id: UUID,
+    ) -> ScoreSnapshot | None:
+        """Return one score snapshot by identifier."""
+        ...
+
+    def list_for_candidate(
+        self,
+        candidate_id: UUID,
+    ) -> list[ScoreSnapshot]:
+        """Return score history for one candidate, newest first."""
+        ...
+
+
 class MediaAssetRepository(Protocol):
     """Persistence contract for MediaAsset entities."""
 
@@ -149,7 +175,7 @@ class MediaAssetRepository(Protocol):
         self,
         asset: MediaAsset,
     ) -> None:
-        """Persist a media asset."""
+        """Persist a new media asset."""
         ...
 
     def get_by_id(

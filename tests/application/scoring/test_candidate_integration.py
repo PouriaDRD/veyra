@@ -95,7 +95,7 @@ def build_analyzed_candidate(
     )
 
 
-def test_score_candidate_from_analysis_persists_numeric_score_and_returns_explanation() -> None:
+def test_score_candidate_from_analysis_persists_score_and_audit_snapshot() -> None:
     (
         unit_of_work,
         search_service,
@@ -134,16 +134,31 @@ def test_score_candidate_from_analysis_persists_numeric_score_and_returns_explan
     assert len(result.score_result.contributions) == 1
     assert result.score_result.contributions[0].key == "occupation-match"
 
-    stored = unit_of_work.candidates.get_by_id(
+    assert result.audit_snapshot is not None
+    assert result.audit_snapshot.candidate_id == candidate.id
+    assert result.audit_snapshot.profile_snapshot_id == snapshot.id
+    assert result.audit_snapshot.score == 10.0
+    assert result.audit_snapshot.algorithm_version == "scoring-v1"
+    assert result.audit_snapshot.contributions == result.score_result.contributions
+
+    stored_candidate = unit_of_work.candidates.get_by_id(
         candidate.id,
     )
 
-    assert stored is not None
-    assert stored.status is CandidateStatus.SCORED
-    assert stored.score == 10.0
+    assert stored_candidate is not None
+    assert stored_candidate.status is CandidateStatus.SCORED
+    assert stored_candidate.score == 10.0
+
+    audit_history = unit_of_work.score_snapshots.list_for_candidate(
+        candidate.id,
+    )
+
+    assert audit_history == [
+        result.audit_snapshot,
+    ]
 
 
-def test_unscorable_result_does_not_persist_artificial_zero() -> None:
+def test_unscorable_result_does_not_persist_artificial_zero_or_audit() -> None:
     (
         unit_of_work,
         search_service,
@@ -176,6 +191,7 @@ def test_unscorable_result_does_not_persist_artificial_zero() -> None:
 
     assert result.persisted is False
     assert result.score_result.score is None
+    assert result.audit_snapshot is None
     assert result.candidate.status is CandidateStatus.ANALYZED
     assert result.candidate.score is None
 
@@ -186,6 +202,7 @@ def test_unscorable_result_does_not_persist_artificial_zero() -> None:
     assert stored is not None
     assert stored.status is CandidateStatus.ANALYZED
     assert stored.score is None
+    assert unit_of_work.score_snapshots.list_for_candidate(candidate.id) == []
 
 
 def test_candidate_scoring_rejects_analysis_for_different_profile() -> None:
