@@ -11,7 +11,11 @@ requires-python = ">=3.13"
 authors = [
     { name = "Pouria Darandi" },
 ]
-dependencies = []
+dependencies = [
+    "pydantic>=2.13.5,<3",
+    "pydantic-settings>=2.15,<3",
+    "structlog>=26.1,<27",
+]
 
 
 [project.optional-dependencies]
@@ -43,6 +47,7 @@ addopts = [
     "-ra",
     "--strict-config",
     "--strict-markers",
+    "--basetemp=.pytest_tmp",
 ]
 
 
