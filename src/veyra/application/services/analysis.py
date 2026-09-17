@@ -6,8 +6,10 @@ from veyra.application.dto.analysis import ProfileAnalysisResult
 from veyra.domain.evidence import (
     BioBirthYearExtractor,
     BioEducationExtractor,
+    BioEducationInstitutionRelationExtractor,
     BioEmployerExtractor,
     BioInstitutionExtractor,
+    EducationInstitutionRelation,
     Evidence,
     Fact,
     FactKind,
@@ -69,6 +71,9 @@ class ProfileAnalysisService:
         bio_employer_extractor: BioEmployerExtractor | None = None,
         bio_institution_extractor: BioInstitutionExtractor | None = None,
         bio_education_extractor: BioEducationExtractor | None = None,
+        bio_education_institution_relation_extractor: (
+            BioEducationInstitutionRelationExtractor | None
+        ) = None,
         profile_purpose_signal_extractor: ProfilePurposeSignalExtractor | None = None,
         profile_purpose_hypothesis_adapter: ProfilePurposeHypothesisAdapter | None = None,
         hypothesis_service: HypothesisEvaluationService | None = None,
@@ -131,6 +136,11 @@ class ProfileAnalysisService:
             if bio_education_extractor is not None
             else BioEducationExtractor()
         )
+        self._bio_education_institution_relation_extractor = (
+            bio_education_institution_relation_extractor
+            if bio_education_institution_relation_extractor is not None
+            else BioEducationInstitutionRelationExtractor()
+        )
         self._profile_purpose_signal_extractor = (
             profile_purpose_signal_extractor
             if profile_purpose_signal_extractor is not None
@@ -175,6 +185,7 @@ class ProfileAnalysisService:
         employer_evidence = self._extract_employer_evidence(snapshot)
         institution_evidence = self._extract_institution_evidence(snapshot)
         education_evidence = self._extract_education_evidence(snapshot)
+        education_institution_relations = self._extract_education_institution_relations(snapshot)
 
         all_evidence = (
             *birth_year_evidence,
@@ -275,6 +286,7 @@ class ProfileAnalysisService:
             observations=observations,
             hypotheses=hypotheses,
             validation=validation,
+            education_institution_relations=education_institution_relations,
         )
 
     def _extract_birth_year_evidence(
@@ -349,6 +361,17 @@ class ProfileAnalysisService:
         if snapshot.bio is None:
             return ()
         return self._bio_education_extractor.extract(snapshot.bio)
+
+    def _extract_education_institution_relations(
+        self,
+        snapshot: ProfileSnapshot,
+    ) -> tuple[EducationInstitutionRelation, ...]:
+        if snapshot.bio is None:
+            return ()
+
+        return self._bio_education_institution_relation_extractor.extract(
+            snapshot.bio,
+        )
 
     def _build_relationship_observations(
         self,

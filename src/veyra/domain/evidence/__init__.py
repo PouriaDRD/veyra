@@ -2,10 +2,7 @@
 
 from .birth_year import BirthYear, CalendarSystem
 from .cardinality import fact_cardinality_for
-from .confidence import (
-    combine_confidences,
-    conflict_confidence,
-)
+from .confidence import combine_confidences, conflict_confidence
 from .entities import Evidence, Fact, FactValue
 from .enums import (
     ConfidenceLevel,
@@ -18,11 +15,13 @@ from .extractors import (
     DEFAULT_OCCUPATION_LEXICON,
     BioBirthYearExtractor,
     BioEducationExtractor,
+    BioEducationInstitutionRelationExtractor,
     BioEmployerExtractor,
     BioInstitutionExtractor,
     BioLocationExtractor,
     BioRelationshipStatusExtractor,
     EducationCredential,
+    EducationInstitutionRelation,
     EducationLevel,
     OccupationEntry,
     OccupationLexicon,
@@ -37,6 +36,7 @@ __all__ = [
     "DEFAULT_OCCUPATION_LEXICON",
     "BioBirthYearExtractor",
     "BioEducationExtractor",
+    "BioEducationInstitutionRelationExtractor",
     "BioEmployerExtractor",
     "BioInstitutionExtractor",
     "BioLocationExtractor",
@@ -45,6 +45,7 @@ __all__ = [
     "CalendarSystem",
     "ConfidenceLevel",
     "EducationCredential",
+    "EducationInstitutionRelation",
     "EducationLevel",
     "Evidence",
     "EvidenceSource",

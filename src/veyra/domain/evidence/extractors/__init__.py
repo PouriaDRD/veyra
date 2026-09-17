@@ -1,15 +1,15 @@
 """Evidence extractor implementations."""
 
-from .birth_year import (
-    BioBirthYearExtractor,
-    UsernameBirthYearExtractor,
-    normalize_digits,
-)
+from .birth_year import BioBirthYearExtractor, UsernameBirthYearExtractor, normalize_digits
 from .education import (
     BioEducationExtractor,
     BioInstitutionExtractor,
     EducationCredential,
     EducationLevel,
+)
+from .education_relation import (
+    BioEducationInstitutionRelationExtractor,
+    EducationInstitutionRelation,
 )
 from .location import BioLocationExtractor
 from .professional import (
@@ -20,19 +20,19 @@ from .professional import (
     OccupationTextSource,
     ProfileOccupationExtractor,
 )
-from .relationship import (
-    BioRelationshipStatusExtractor,
-)
+from .relationship import BioRelationshipStatusExtractor
 
 __all__ = [
     "DEFAULT_OCCUPATION_LEXICON",
     "BioBirthYearExtractor",
     "BioEducationExtractor",
+    "BioEducationInstitutionRelationExtractor",
     "BioEmployerExtractor",
     "BioInstitutionExtractor",
     "BioLocationExtractor",
     "BioRelationshipStatusExtractor",
     "EducationCredential",
+    "EducationInstitutionRelation",
     "EducationLevel",
     "OccupationEntry",
     "OccupationLexicon",

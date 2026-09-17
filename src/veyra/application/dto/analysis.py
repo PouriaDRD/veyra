@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from veyra.domain.evidence import (
+    EducationInstitutionRelation,
     Evidence,
     Fact,
     FactKind,
@@ -27,6 +28,7 @@ class ProfileAnalysisResult:
     - normalized hypothesis observations
     - derived hypotheses
     - validation findings
+    - explicit education/institution relationships
 
     This allows filtering, scoring, persistence, and presentation layers to
     consume one coherent analysis result without reconstructing context.
@@ -49,6 +51,11 @@ class ProfileAnalysisResult:
     ]
 
     validation: ValidationResult
+
+    education_institution_relations: tuple[
+        EducationInstitutionRelation,
+        ...,
+    ] = ()
 
     def fact_for(
         self,
@@ -73,3 +80,15 @@ class ProfileAnalysisResult:
                 return hypothesis
 
         return None
+
+    def education_relations_for(
+        self,
+        education: str,
+    ) -> tuple[EducationInstitutionRelation, ...]:
+        """Return explicit institution relations for one education value."""
+
+        return tuple(
+            relation
+            for relation in self.education_institution_relations
+            if relation.education == education
+        )
