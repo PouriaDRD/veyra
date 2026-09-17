@@ -25,7 +25,6 @@ def build_candidate() -> tuple[
     """Create one search candidate with its backing profile."""
 
     unit_of_work = FakeUnitOfWork()
-
     profile_service = ProfileService(
         unit_of_work,
     )
@@ -65,7 +64,6 @@ def build_candidate() -> tuple[
 
 def test_search_service_creates_and_starts_search() -> None:
     unit_of_work = FakeUnitOfWork()
-
     service = SearchService(
         unit_of_work,
     )
@@ -107,7 +105,7 @@ def test_search_service_rejects_duplicate_candidate() -> None:
         )
 
 
-def test_search_service_snapshot_analysis_and_score_flow() -> None:
+def test_search_service_snapshot_and_analysis_flow() -> None:
     (
         unit_of_work,
         search_service,
@@ -141,13 +139,18 @@ def test_search_service_snapshot_analysis_and_score_flow() -> None:
 
     assert analyzed.status is CandidateStatus.ANALYZED
 
-    scored = search_service.score_candidate(
-        candidate.id,
-        8.75,
-    )
 
-    assert scored.status is CandidateStatus.SCORED
-    assert scored.score == 8.75
+def test_direct_scoring_is_disabled_to_prevent_eligibility_bypass() -> None:
+    _, search_service, _, candidate = build_candidate()
+
+    with pytest.raises(
+        ValueError,
+        match="Direct candidate scoring is disabled",
+    ):
+        search_service.score_candidate(
+            candidate.id,
+            8.75,
+        )
 
 
 def test_public_profile_is_filtered_immediately_after_snapshot() -> None:
@@ -175,34 +178,3 @@ def test_public_profile_is_filtered_immediately_after_snapshot() -> None:
     assert stored.status is CandidateStatus.FILTERED_OUT
     assert stored.score is None
     assert stored.exclusion_reason == ("Public profiles are not eligible for scoring.")
-
-
-def test_unknown_privacy_cannot_receive_manual_score() -> None:
-    (
-        _,
-        search_service,
-        profile,
-        candidate,
-    ) = build_candidate()
-
-    search_service.capture_snapshot(
-        candidate.id,
-        CaptureSnapshotCommand(
-            profile_id=profile.id,
-            username=profile.username,
-            is_private=None,
-        ),
-    )
-
-    search_service.mark_candidate_analyzed(
-        candidate.id,
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="privacy must be confirmed private",
-    ):
-        search_service.score_candidate(
-            candidate.id,
-            9.0,
-        )

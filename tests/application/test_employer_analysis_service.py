@@ -196,6 +196,7 @@ def test_employer_fact_coexists_with_other_fact_categories() -> None:
 
     assert fact_kinds == {
         FactKind.BIRTH_YEAR,
+        FactKind.DECLARED_GENDER,
         FactKind.RELATIONSHIP_STATUS,
         FactKind.CITY,
         FactKind.COUNTRY,

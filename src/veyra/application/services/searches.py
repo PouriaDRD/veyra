@@ -8,6 +8,10 @@ from veyra.application.dto import (
     CreateSearchCommand,
 )
 from veyra.application.dto.analysis import ProfileAnalysisResult
+from veyra.application.eligibility import (
+    CandidateEligibilityService,
+    CandidateEligibilityStatus,
+)
 from veyra.application.exceptions import (
     CandidateAlreadyExistsError,
     EntityNotFoundError,
@@ -28,7 +32,10 @@ from veyra.domain.searches import (
 from veyra.domain.snapshots import ProfileSnapshot
 
 PUBLIC_PROFILE_EXCLUSION_REASON = "Public profiles are not eligible for scoring."
-UNKNOWN_PRIVACY_SCORING_ERROR = "Candidate privacy must be confirmed private before scoring."
+DIRECT_SCORING_DISABLED_ERROR = (
+    "Direct candidate scoring is disabled; use analysis-driven scoring "
+    "so eligibility cannot be bypassed."
+)
 
 
 class SearchService:
@@ -38,13 +45,21 @@ class SearchService:
         self,
         unit_of_work: UnitOfWork,
         *,
+        eligibility_service: CandidateEligibilityService | None = None,
         profile_scoring_service: ProfileScoringService | None = None,
     ) -> None:
         self._unit_of_work = unit_of_work
+        self._eligibility_service = (
+            eligibility_service
+            if eligibility_service is not None
+            else CandidateEligibilityService()
+        )
         self._profile_scoring_service = (
             profile_scoring_service
             if profile_scoring_service is not None
-            else ProfileScoringService()
+            else ProfileScoringService(
+                eligibility_service=self._eligibility_service,
+            )
         )
 
     def create(self, command: CreateSearchCommand) -> Search:
@@ -138,34 +153,19 @@ class SearchService:
         candidate_id: UUID,
         score: float,
     ) -> SearchCandidate:
-        """Assign an already-computed score only to confirmed-private candidates."""
+        """
+        Reject legacy direct scoring.
 
-        with self._unit_of_work as unit_of_work:
-            candidate = self._get_candidate(unit_of_work, candidate_id)
-            snapshot = self._get_candidate_snapshot(
-                unit_of_work,
-                candidate,
-            )
+        Analysis-driven scoring is mandatory because privacy, adulthood,
+        personal-account purpose, and declared-female eligibility must be
+        evaluated before any score can be persisted.
+        """
 
-            if snapshot.is_private is False:
-                if candidate.status in {
-                    CandidateStatus.SNAPSHOTTED,
-                    CandidateStatus.ANALYZED,
-                }:
-                    candidate.filter_out(
-                        PUBLIC_PROFILE_EXCLUSION_REASON,
-                    )
-                    unit_of_work.candidates.update(candidate)
-                return candidate
+        del candidate_id, score
 
-            if snapshot.is_private is not True:
-                raise ValueError(
-                    UNKNOWN_PRIVACY_SCORING_ERROR,
-                )
-
-            candidate.set_score(score)
-            unit_of_work.candidates.update(candidate)
-            return candidate
+        raise ValueError(
+            DIRECT_SCORING_DISABLED_ERROR,
+        )
 
     def score_candidate_from_analysis(
         self,
@@ -174,10 +174,10 @@ class SearchService:
         policy: AnalysisScoringPolicy,
     ) -> CandidateScoringResult:
         """
-        Score only a confirmed-private analyzed candidate.
+        Evaluate eligibility, then score and audit one eligible candidate.
 
-        Public candidates are excluded. Unknown privacy stays unscorable.
-        Successful score persistence and audit insertion remain atomic.
+        Rejected candidates are filtered out. Enrichment-required candidates
+        remain ANALYZED and unscored so additional evidence can be gathered.
         """
 
         with self._unit_of_work as unit_of_work:
@@ -197,21 +197,35 @@ class SearchService:
                     "Analysis privacy state does not match candidate snapshot.",
                 )
 
+            eligibility = self._eligibility_service.evaluate(
+                analysis,
+            )
+
             score_result = self._profile_scoring_service.score(
                 analysis,
                 policy,
             )
 
-            if snapshot.is_private is False:
+            if eligibility.status is CandidateEligibilityStatus.REJECTED:
                 if candidate.status in {
                     CandidateStatus.SNAPSHOTTED,
                     CandidateStatus.ANALYZED,
                 }:
                     candidate.filter_out(
-                        PUBLIC_PROFILE_EXCLUSION_REASON,
+                        self._eligibility_exclusion_reason(
+                            eligibility.reasons[0].value,
+                        )
                     )
                     unit_of_work.candidates.update(candidate)
 
+                return CandidateScoringResult(
+                    candidate=candidate,
+                    score_result=score_result,
+                    persisted=False,
+                    audit_snapshot=None,
+                )
+
+            if eligibility.status is CandidateEligibilityStatus.ENRICHMENT_REQUIRED:
                 return CandidateScoringResult(
                     candidate=candidate,
                     score_result=score_result,
@@ -255,6 +269,14 @@ class SearchService:
             candidate.filter_out(reason)
             unit_of_work.candidates.update(candidate)
             return candidate
+
+    @staticmethod
+    def _eligibility_exclusion_reason(
+        reason: str,
+    ) -> str:
+        """Return a stable persisted candidate exclusion message."""
+
+        return f"Candidate eligibility rejected: {reason}."
 
     @staticmethod
     def _validate_analysis_matches_candidate(

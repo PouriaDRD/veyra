@@ -5,6 +5,7 @@ from datetime import date
 from veyra.application.dto.analysis import ProfileAnalysisResult
 from veyra.domain.evidence import (
     BioBirthYearExtractor,
+    BioDeclaredGenderExtractor,
     BioEducationExtractor,
     BioEducationInstitutionRelationExtractor,
     BioEmployerExtractor,
@@ -61,6 +62,7 @@ class ProfileAnalysisService:
         *,
         username_birth_year_extractor: UsernameBirthYearExtractor | None = None,
         bio_birth_year_extractor: BioBirthYearExtractor | None = None,
+        bio_declared_gender_extractor: BioDeclaredGenderExtractor | None = None,
         bio_relationship_status_extractor: BioRelationshipStatusExtractor | None = None,
         relationship_signal_extractor: RelationshipSignalExtractor | None = None,
         relationship_hypothesis_adapter: RelationshipHypothesisAdapter | None = None,
@@ -89,6 +91,11 @@ class ProfileAnalysisService:
             bio_birth_year_extractor
             if bio_birth_year_extractor is not None
             else BioBirthYearExtractor()
+        )
+        self._bio_declared_gender_extractor = (
+            bio_declared_gender_extractor
+            if bio_declared_gender_extractor is not None
+            else BioDeclaredGenderExtractor()
         )
         self._bio_relationship_status_extractor = (
             bio_relationship_status_extractor
@@ -178,6 +185,7 @@ class ProfileAnalysisService:
         """Analyze one immutable profile snapshot."""
 
         birth_year_evidence = self._extract_birth_year_evidence(snapshot)
+        declared_gender_evidence = self._extract_declared_gender_evidence(snapshot)
         relationship_evidence = self._extract_relationship_evidence(snapshot)
         city_evidence = self._extract_location_evidence(snapshot, kind=FactKind.CITY)
         country_evidence = self._extract_location_evidence(snapshot, kind=FactKind.COUNTRY)
@@ -189,6 +197,7 @@ class ProfileAnalysisService:
 
         all_evidence = (
             *birth_year_evidence,
+            *declared_gender_evidence,
             *relationship_evidence,
             *city_evidence,
             *country_evidence,
@@ -201,6 +210,10 @@ class ProfileAnalysisService:
         birth_year_fact = self._fact_resolver.resolve(
             FactKind.BIRTH_YEAR,
             birth_year_evidence,
+        )
+        declared_gender_fact = self._fact_resolver.resolve(
+            FactKind.DECLARED_GENDER,
+            declared_gender_evidence,
         )
         relationship_fact = self._fact_resolver.resolve(
             FactKind.RELATIONSHIP_STATUS,
@@ -227,6 +240,7 @@ class ProfileAnalysisService:
 
         facts: tuple[Fact, ...] = (
             birth_year_fact,
+            declared_gender_fact,
             relationship_fact,
             city_fact,
             country_fact,
@@ -299,6 +313,19 @@ class ProfileAnalysisService:
         if snapshot.bio is not None:
             evidence.extend(self._bio_birth_year_extractor.extract(snapshot.bio))
         return tuple(evidence)
+
+    def _extract_declared_gender_evidence(
+        self,
+        snapshot: ProfileSnapshot,
+    ) -> tuple[Evidence, ...]:
+        """Extract explicit declared-gender evidence from profile bio."""
+
+        if snapshot.bio is None:
+            return ()
+
+        return self._bio_declared_gender_extractor.extract(
+            snapshot.bio,
+        )
 
     def _extract_relationship_evidence(
         self,

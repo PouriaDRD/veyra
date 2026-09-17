@@ -23,6 +23,18 @@ class EvidenceSource(StrEnum):
     PROVIDER_METADATA = "provider_metadata"
 
 
+class DeclaredGender(StrEnum):
+    """
+    Explicit self-declared gender values supported by candidate eligibility.
+
+    This value describes explicit evidence only. It is not populated from
+    names, usernames, photos, clothing, emoji, or other proxy attributes.
+    """
+
+    FEMALE = "female"
+    MALE = "male"
+
+
 class FactKind(StrEnum):
     """Supported normalized factual categories."""
 
@@ -31,6 +43,7 @@ class FactKind(StrEnum):
 
     BIRTH_YEAR = "birth_year"
     AGE = "age"
+    DECLARED_GENDER = "declared_gender"
 
     LOCATION = "location"
     COUNTRY = "country"

@@ -251,6 +251,7 @@ def test_purpose_analysis_does_not_create_profile_purpose_fact() -> None:
 
     assert fact_kinds == {
         FactKind.BIRTH_YEAR,
+        FactKind.DECLARED_GENDER,
         FactKind.RELATIONSHIP_STATUS,
         FactKind.CITY,
         FactKind.COUNTRY,

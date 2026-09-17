@@ -1,6 +1,7 @@
 """Application orchestration for explainable profile scoring."""
 
 from veyra.application.dto.analysis import ProfileAnalysisResult
+from veyra.application.eligibility import CandidateEligibilityService
 from veyra.domain.scoring import (
     ScoreResult,
     WeightedScoringEngine,
@@ -12,18 +13,24 @@ from .rules import AnalysisScoringPolicy
 
 class ProfileScoringService:
     """
-    Orchestrate analysis adaptation and deterministic score aggregation.
+    Orchestrate eligibility, analysis adaptation, and deterministic scoring.
 
-    Only profiles explicitly confirmed private are scoreable. Public profiles
-    are ineligible and unknown privacy is not assumed private.
+    Candidate eligibility is a hard precondition. Ineligible or enrichment-only
+    analyses are unscorable and never reach weighted feature aggregation.
     """
 
     def __init__(
         self,
         *,
+        eligibility_service: CandidateEligibilityService | None = None,
         feature_adapter: AnalysisScoringFeatureAdapter | None = None,
         scoring_engine: WeightedScoringEngine | None = None,
     ) -> None:
+        self._eligibility_service = (
+            eligibility_service
+            if eligibility_service is not None
+            else CandidateEligibilityService()
+        )
         self._feature_adapter = (
             feature_adapter if feature_adapter is not None else AnalysisScoringFeatureAdapter()
         )
@@ -38,7 +45,11 @@ class ProfileScoringService:
     ) -> ScoreResult:
         """Return one explainable normalized score for an eligible analysis."""
 
-        if analysis.is_private is not True:
+        eligibility = self._eligibility_service.evaluate(
+            analysis,
+        )
+
+        if not eligibility.is_eligible:
             return self._scoring_engine.score(
                 (),
             )

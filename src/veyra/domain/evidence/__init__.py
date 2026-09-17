@@ -6,6 +6,7 @@ from .confidence import combine_confidences, conflict_confidence
 from .entities import Evidence, Fact, FactValue
 from .enums import (
     ConfidenceLevel,
+    DeclaredGender,
     EvidenceSource,
     FactCardinality,
     FactKind,
@@ -14,6 +15,7 @@ from .enums import (
 from .extractors import (
     DEFAULT_OCCUPATION_LEXICON,
     BioBirthYearExtractor,
+    BioDeclaredGenderExtractor,
     BioEducationExtractor,
     BioEducationInstitutionRelationExtractor,
     BioEmployerExtractor,
@@ -35,6 +37,7 @@ from .resolver import FactResolver
 __all__ = [
     "DEFAULT_OCCUPATION_LEXICON",
     "BioBirthYearExtractor",
+    "BioDeclaredGenderExtractor",
     "BioEducationExtractor",
     "BioEducationInstitutionRelationExtractor",
     "BioEmployerExtractor",
@@ -44,6 +47,7 @@ __all__ = [
     "BirthYear",
     "CalendarSystem",
     "ConfidenceLevel",
+    "DeclaredGender",
     "EducationCredential",
     "EducationInstitutionRelation",
     "EducationLevel",

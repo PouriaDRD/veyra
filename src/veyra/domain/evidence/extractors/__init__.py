@@ -11,6 +11,7 @@ from .education_relation import (
     BioEducationInstitutionRelationExtractor,
     EducationInstitutionRelation,
 )
+from .gender import BioDeclaredGenderExtractor
 from .location import BioLocationExtractor
 from .professional import (
     DEFAULT_OCCUPATION_LEXICON,
@@ -25,6 +26,7 @@ from .relationship import BioRelationshipStatusExtractor
 __all__ = [
     "DEFAULT_OCCUPATION_LEXICON",
     "BioBirthYearExtractor",
+    "BioDeclaredGenderExtractor",
     "BioEducationExtractor",
     "BioEducationInstitutionRelationExtractor",
     "BioEmployerExtractor",
