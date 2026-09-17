@@ -29,6 +29,7 @@ class ProfileAnalysisResult:
     - derived hypotheses
     - validation findings
     - explicit education/institution relationships
+    - captured profile privacy state
 
     This allows filtering, scoring, persistence, and presentation layers to
     consume one coherent analysis result without reconstructing context.
@@ -56,6 +57,8 @@ class ProfileAnalysisResult:
         EducationInstitutionRelation,
         ...,
     ] = ()
+
+    is_private: bool | None = None
 
     def fact_for(
         self,

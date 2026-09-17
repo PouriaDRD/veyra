@@ -14,8 +14,8 @@ class ProfileScoringService:
     """
     Orchestrate analysis adaptation and deterministic score aggregation.
 
-    The application layer owns composition while the domain scoring engine
-    remains unaware of profile-analysis DTOs or scoring-policy rule types.
+    Only profiles explicitly confirmed private are scoreable. Public profiles
+    are ineligible and unknown privacy is not assumed private.
     """
 
     def __init__(
@@ -36,7 +36,12 @@ class ProfileScoringService:
         analysis: ProfileAnalysisResult,
         policy: AnalysisScoringPolicy,
     ) -> ScoreResult:
-        """Return one explainable normalized score for a profile analysis."""
+        """Return one explainable normalized score for an eligible analysis."""
+
+        if analysis.is_private is not True:
+            return self._scoring_engine.score(
+                (),
+            )
 
         features = self._feature_adapter.adapt(
             analysis,

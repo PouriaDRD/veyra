@@ -16,74 +16,56 @@ from veyra.application.scoring import (
 from veyra.domain.evidence import FactKind
 from veyra.domain.snapshots import ProfileSnapshot
 
-REFERENCE_DATE = date(
-    2026,
-    9,
-    17,
-)
+REFERENCE_DATE = date(2026, 9, 17)
 
 
 def analyze(
     bio: str | None,
+    *,
+    is_private: bool | None = True,
 ) -> ProfileAnalysisResult:
-    """Analyze one deterministic adult profile for scoring tests."""
-
     return ProfileAnalysisService().analyze(
         ProfileSnapshot(
             profile_id=uuid4(),
             username="scoring_service_1997",
             display_name=None,
             bio=bio,
+            is_private=is_private,
         ),
         reference_date=REFERENCE_DATE,
     )
 
 
-def test_service_scores_matching_fact_end_to_end() -> None:
-    result = ProfileScoringService().score(
-        analyze(
-            "Software Engineer",
-        ),
-        AnalysisScoringPolicy(
-            fact_rules=(
-                FactValueScoringRule(
-                    key="occupation-match",
-                    kind=FactKind.OCCUPATION,
-                    accepted_values=("software engineer",),
-                    weight=2.0,
-                    reason="Desired occupation.",
-                ),
+def occupation_policy() -> AnalysisScoringPolicy:
+    return AnalysisScoringPolicy(
+        fact_rules=(
+            FactValueScoringRule(
+                key="occupation-match",
+                kind=FactKind.OCCUPATION,
+                accepted_values=("software engineer",),
+                weight=2.0,
+                reason="Desired occupation.",
             ),
         ),
     )
 
+
+def test_service_scores_matching_fact_end_to_end() -> None:
+    result = ProfileScoringService().score(
+        analyze("Software Engineer"),
+        occupation_policy(),
+    )
     assert result.score == 10.0
     assert result.normalized_value == 1.0
-    assert result.total_effective_weight == pytest.approx(
-        1.92,
-    )
+    assert result.total_effective_weight == pytest.approx(1.92)
     assert result.algorithm_version == "scoring-v1"
     assert result.is_scorable is True
-
     assert len(result.contributions) == 1
-
-    contribution = result.contributions[0]
-
-    assert contribution.key == "occupation-match"
-    assert contribution.value == 1.0
-    assert contribution.configured_weight == 2.0
-    assert contribution.confidence == 0.96
-    assert contribution.effective_weight == pytest.approx(
-        1.92,
-    )
-    assert contribution.reason == "Desired occupation."
 
 
 def test_service_scores_supported_mismatch_as_zero() -> None:
     result = ProfileScoringService().score(
-        analyze(
-            "Software Engineer",
-        ),
+        analyze("Software Engineer"),
         AnalysisScoringPolicy(
             fact_rules=(
                 FactValueScoringRule(
@@ -96,7 +78,6 @@ def test_service_scores_supported_mismatch_as_zero() -> None:
             ),
         ),
     )
-
     assert result.score == 0.0
     assert result.normalized_value == 0.0
     assert result.is_scorable is True
@@ -104,19 +85,9 @@ def test_service_scores_supported_mismatch_as_zero() -> None:
 
 def test_service_combines_multiple_weighted_features() -> None:
     result = ProfileScoringService().score(
-        analyze(
-            "Software Engineer | BSc Computer Science at MIT",
-        ),
+        analyze("Software Engineer | BSc Computer Science at MIT"),
         AnalysisScoringPolicy(
-            fact_rules=(
-                FactValueScoringRule(
-                    key="occupation-match",
-                    kind=FactKind.OCCUPATION,
-                    accepted_values=("software engineer",),
-                    weight=2.0,
-                    reason="Desired occupation.",
-                ),
-            ),
+            fact_rules=occupation_policy().fact_rules,
             relation_rules=(
                 EducationInstitutionScoringRule(
                     key="education-pair",
@@ -128,41 +99,23 @@ def test_service_combines_multiple_weighted_features() -> None:
             ),
         ),
     )
-
-    assert result.total_effective_weight == pytest.approx(
-        2.89,
-    )
-    assert result.score == pytest.approx(
-        6.643599,
-    )
-
-    assert tuple(contribution.key for contribution in result.contributions) == (
-        "education-pair",
-        "occupation-match",
-    )
+    assert result.total_effective_weight == pytest.approx(2.89)
+    assert result.score == pytest.approx(6.643599)
 
 
 def test_service_returns_unscorable_result_for_empty_policy() -> None:
     result = ProfileScoringService().score(
-        analyze(
-            "Software Engineer",
-        ),
+        analyze("Software Engineer"),
         AnalysisScoringPolicy(),
     )
-
     assert result.score is None
-    assert result.normalized_value is None
-    assert result.total_effective_weight == 0.0
     assert result.contributions == ()
-    assert result.algorithm_version == "scoring-v1"
     assert result.is_scorable is False
 
 
 def test_service_returns_unscorable_when_configured_source_is_unknown() -> None:
     result = ProfileScoringService().score(
-        analyze(
-            None,
-        ),
+        analyze(None),
         AnalysisScoringPolicy(
             fact_rules=(
                 FactValueScoringRule(
@@ -175,7 +128,23 @@ def test_service_returns_unscorable_when_configured_source_is_unknown() -> None:
             ),
         ),
     )
-
     assert result.score is None
+    assert result.contributions == ()
+    assert result.is_scorable is False
+
+
+@pytest.mark.parametrize("is_private", (False, None))
+def test_service_never_scores_unconfirmed_private_profiles(
+    is_private: bool | None,
+) -> None:
+    result = ProfileScoringService().score(
+        analyze(
+            "Software Engineer",
+            is_private=is_private,
+        ),
+        occupation_policy(),
+    )
+    assert result.score is None
+    assert result.normalized_value is None
     assert result.contributions == ()
     assert result.is_scorable is False

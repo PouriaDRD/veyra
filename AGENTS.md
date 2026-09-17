@@ -8,43 +8,30 @@ Veyra is a modular social-profile discovery, validation, snapshot-intelligence,
 hypothesis, and scoring engine. Preserve its clean architecture, deterministic
 behavior, auditability, typing discipline, and explicit semantic boundaries.
 
-Do not treat this repository as a generic CRUD application. Domain semantics,
-evidence provenance, scoring explainability, and reproducibility are core
-requirements.
+## Core Product Eligibility Rule
 
-## Runtime and Toolchain
+Veyra's ranking/scoring target is confirmed-private profiles.
 
-- Python: 3.13+
-- Package layout: `src/`
-- SQLAlchemy: 2.x
-- Alembic: migrations
-- Pytest: tests
-- Mypy: strict mode
-- Ruff: linting and formatting
-- Structlog: structured logging
-- Default local persistence: SQLite
-- Production architecture must remain portable to PostgreSQL.
+Privacy is a hard eligibility boundary, not a positive scoring feature:
 
-The canonical project configuration is `pyproject.toml`.
+- `is_private is True`: candidate may proceed through analysis and scoring.
+- `is_private is False`: candidate must be excluded and must never receive a score.
+- `is_private is None`: never assume private; candidate is unscorable until privacy is known.
 
-## Repository Layout
+Public profiles are not merely "lower weighted". They are outside the scoring
+candidate set. No combination of occupation, education, institution, location,
+profile-purpose, or other intelligence may override this rule.
 
-Primary boundaries:
+The privacy guard must exist at scoring boundaries even if an earlier lifecycle
+stage already filtered the candidate. Defense in depth is intentional.
 
-- `src/veyra/domain/`
-  Pure business and intelligence semantics.
-- `src/veyra/application/`
-  Use cases, DTOs, orchestration, ports, and policy adapters.
-- `src/veyra/infrastructure/`
-  Database, repositories, external implementations, and persistence mapping.
-- `src/veyra/bootstrap/`
-  Application composition and lifecycle.
-- `tests/`
-  Mirrors the application/domain/infrastructure boundaries.
-- `migrations/`
-  Alembic migrations.
+Activity level, content interests/topics, and language are not primary ranking
+features for the current product scope and must not be added to candidate
+scoring unless product requirements explicitly change.
 
-Dependency direction:
+## Architecture
+
+Primary dependency direction:
 
 `Presentation -> Application -> Domain`
 
@@ -55,57 +42,27 @@ database sessions, or infrastructure implementations.
 
 ## Intelligence Pipeline
 
-The conceptual flow is:
-
-`Raw public profile`
-`-> ProfileSnapshot`
+`ProfileSnapshot`
+`-> Privacy eligibility`
 `-> Extractors`
 `-> Evidence`
 `-> Fact resolution`
 `-> Validation / Filtering`
-`-> Signals / Features`
+`-> Signals`
 `-> Hypothesis Engine`
-`-> Hypotheses / Analytics`
 `-> Scoring`
-`-> Explanation / Audit`
+`-> ScoreSnapshot audit`
 
-Keep these stages semantically distinct.
+Confirmed-public profiles should leave the candidate lifecycle as early as
+practical and before scoring. Unknown privacy may remain available for later
+resolution but cannot be scored.
 
-### Facts
+Facts, signals, hypotheses, validation, filtering, and scoring are distinct
+semantics. Do not encode filtering rejection as a low score.
 
-Facts represent resolved claims supported by evidence.
+## Scoring
 
-Facts are not scoring preferences.
-
-### Signals
-
-Signals represent observations useful for inference.
-
-Signals are not facts.
-
-### Hypotheses
-
-Hypotheses combine signals through the generic hypothesis engine.
-
-Probability/support is not the same thing as evidence confidence.
-
-### Validation and Filtering
-
-Validation determines whether profile data satisfies validity/policy rules.
-
-Filtering determines whether a candidate remains eligible.
-
-Do not encode filtering rejection as a low score.
-
-### Scoring
-
-Scoring evaluates configured criteria.
-
-A feature value is normalized to `0..1`.
-
-Configured weight controls importance.
-
-Confidence scales influence:
+A scoring feature value is normalized to `0..1`.
 
 `effective_weight = weight * confidence`
 
@@ -115,211 +72,103 @@ Confidence scales influence:
 
 `final_score = normalized_score * 10`
 
-Missing or unresolved information is omitted rather than treated as negative
-evidence.
+Missing information is omitted rather than treated as negative evidence.
+A supported mismatch may contribute zero. No effective evidence means
+unscorable (`None`), never an artificial zero.
 
-A known supported mismatch may contribute a value of `0`.
+Only confirmed-private analyses may reach feature adaptation and weighted
+scoring.
 
-If there is no effective scoring evidence, the result is unscorable (`None`);
-never invent a zero score.
+Do not invent universal product weights. Weights belong to configured policy.
 
 ## Scoring Auditability
 
-Every successful analysis-driven candidate scoring run must preserve both:
+Every successful analysis-driven candidate score must preserve both:
 
-1. the normalized score on `SearchCandidate`;
+1. `SearchCandidate.score`;
 2. an immutable append-only `ScoreSnapshot`.
 
-`ScoreSnapshot` records:
+Candidate update and score-audit insertion share one Unit of Work transaction.
 
-- candidate identity;
-- source profile snapshot identity;
-- final score;
-- normalized value;
-- total effective weight;
-- scoring algorithm version;
-- full contribution breakdown;
-- creation time.
+Unscorable, public, or unknown-privacy profiles must not create score snapshots.
 
-Candidate score update and score-audit insertion must occur in the same Unit of
-Work transaction.
+## Evidence and Safety Semantics
 
-Do not update or overwrite historical score snapshots.
+Evidence keeps provenance, raw value, normalized value, confidence, nature,
+strength, ambiguity, extractor identity, and observation time where applicable.
 
-Unscorable results must not create score snapshots.
-
-## Evidence and Sensitive-Trait Rules
-
-Use only public/profile-derived evidence supported by the product rules.
-
-Do not infer sensitive personal traits from weak/contextual proxies.
-
-In particular:
-
-- do not infer personal religion or religiosity from religious content cues;
-- do not infer protected/sensitive traits for personal scoring;
-- do not use sensitive-trait proxies in scoring;
-- explicit self-declared statements may be represented only when the domain
-  explicitly supports them;
-- content-level topics are distinct from personal identity.
+Do not infer sensitive personal traits from contextual proxies.
 
 Do not implement attractiveness scoring.
 
-Age must remain explicit/evidence-based. Uncertain age and minors are subject to
+Age must remain explicit/evidence-based. Uncertain age and minors belong to
 validation/filtering policy, not speculative scoring.
 
 Do not implement CAPTCHA bypass, stealth/evasion, anti-bot circumvention, or
-other access-control bypass techniques.
-
-## Evidence Semantics
-
-Evidence must retain provenance.
-
-Relevant concepts include:
-
-- source;
-- raw value;
-- normalized value;
-- confidence;
-- evidence nature;
-- evidence strength;
-- ambiguity;
-- extractor identity;
-- observation time.
-
-Do not discard raw evidence when normalization occurs.
+access-control bypass.
 
 ## Multi-Value Facts
 
-Some facts are intentionally multi-valued, notably education and institution.
+Education and institution can be multi-valued.
 
-Do not turn multiple compatible education/institution values into false
-conflicts.
+Compatible values must not become false conflicts.
 
-Education and institution remain independent facts.
-
-Explicit education/institution relations are modeled separately and must not be
-guessed across unrelated text segments.
+Education and institution remain independent facts. Explicit relations are
+modeled separately and must not be guessed across unrelated text segments.
 
 ## Correlation and Double Counting
 
-Duplicate feature keys are invalid.
+Duplicate scoring keys are invalid but do not solve correlated evidence.
 
-That does not by itself solve correlated evidence.
-
-When multiple scoring features originate from the same underlying evidence,
-consider correlation and double-counting risk explicitly.
-
-Do not silently count the same evidence multiple times merely because it can be
-represented as a fact, hypothesis, and relation.
+Do not silently count the same underlying evidence multiple times merely
+because it appears as a fact, hypothesis, and relation.
 
 ## Text Normalization
 
-Persian is a first-class language.
+Persian is first-class.
 
-Current normalization principles include:
+Normalization principles include NFKC, Arabic yeh/kaf normalization, ASCII
+digit normalization, zero-width handling, whitespace collapse, and casefolding.
 
-- Unicode NFKC;
-- Arabic yeh/kaf normalization to Persian forms;
-- digit normalization to ASCII;
-- zero-width character handling;
-- whitespace collapse;
-- case folding.
+Preserve room for mixed Persian/English, Finglish, slang, and half-space.
 
-Preserve room for mixed Persian/English, Finglish, slang, and half-space
-handling.
+## Persistence
 
-## Persistence Rules
+Domain entities and SQLAlchemy models are separate. Use explicit mappers.
 
-Domain entities and SQLAlchemy models are separate.
+Repositories implement application ports and share one Unit of Work transaction.
 
-Use explicit mappers.
+Schema changes require Alembic migrations. After schema changes run:
 
-Repositories implement application-layer protocols.
+```bat
+alembic upgrade head
+alembic check
+```
 
-All repositories participating in one use case should share one Unit of Work
-transaction.
-
-SQLite settings and behavior must not leak into domain semantics.
-
-Schema changes require Alembic migrations.
-
-After a schema change:
-
-1. run `alembic upgrade head`;
-2. run `alembic check`;
-3. run database tests;
-4. ensure `Base.metadata` registration tests reflect the new schema.
-
-## Migration Rules
-
-Never rewrite an already-pushed migration unless explicitly performing a
-repository-history repair.
-
-New schema evolution gets a new migration.
-
-Migration upgrade and downgrade paths must remain coherent.
-
-Use explicit constraints for important numeric ranges and foreign-key
-relationships.
+Never rewrite an already-pushed migration unless explicitly repairing history.
 
 ## Typing and Style
 
-Use Python 3.13 typing.
+Python 3.13+, strict mypy, Ruff formatting/linting.
 
-Mypy runs in strict mode.
+Prefer precise types, immutable value objects/results, enums for closed sets,
+protocols for ports, dependency injection, deterministic methods, and useful
+docstrings.
 
-Prefer:
-
-- precise return types;
-- immutable dataclasses for value objects/results;
-- enums for closed semantic sets;
-- protocols for ports;
-- dependency injection at application boundaries;
-- small deterministic methods;
-- docstrings on public classes/functions;
-- comments for non-obvious domain decisions, not obvious syntax.
-
-Avoid:
-
-- `Any` unless serialization/dynamic boundaries genuinely require it;
-- hidden global state;
-- infrastructure imports from domain;
-- magic business constants without semantic names;
-- broad exception swallowing.
+Avoid hidden global state, domain-to-infrastructure imports, broad exception
+swallowing, and magic business constants.
 
 ## Determinism
 
-Given the same snapshot, policy, ruleset, algorithm version, and reference time,
-results should be reproducible.
+Given the same snapshot, privacy state, policy, ruleset, algorithm version, and
+reference time, semantic results should be reproducible.
 
-Sort unordered outputs before returning them where ordering is externally
-observable.
+Sort externally observable unordered outputs. Version material algorithm/ruleset
+changes.
 
-Version algorithms/rules when behavior changes materially.
+## Testing Gate
 
-Do not introduce random ordering.
-
-UUID identity may be random; semantic outputs should not depend on UUID order
-unless UUID is used only as a deterministic tie-breaker for already equivalent
-records.
-
-## Testing Expectations
-
-Every behavior change needs focused tests at the closest layer.
-
-Typical progression:
-
-1. targeted tests for changed module;
-2. adjacent regression tests;
-3. full `pytest`;
-4. `mypy`;
-5. `ruff format --check .`;
-6. `ruff check .`;
-7. `alembic check` for persistence/schema work;
-8. `python -m veyra`.
-
-Useful commands:
+For meaningful changes run targeted tests first, then:
 
 ```bat
 pytest
@@ -330,26 +179,15 @@ alembic check
 python -m veyra
 ```
 
-For a migration:
+Do not claim a gate is green unless it actually ran and passed.
 
-```bat
-alembic upgrade head
-alembic check
-```
-
-Do not weaken tests to hide a real production bug.
-
-If a schema intentionally changes, update schema expectation tests to reflect
-the new intended state.
+Do not weaken tests to hide production bugs.
 
 ## Git Workflow
 
 Primary development branch: `dev`.
 
-Before editing an existing file, inspect the current branch version rather than
-reconstructing it from memory.
-
-Keep diffs narrow.
+Before editing existing files, inspect the current branch version.
 
 Before commit:
 
@@ -367,7 +205,7 @@ git diff --cached --stat
 git diff --cached
 ```
 
-After pushing:
+After push:
 
 ```bat
 git rev-parse HEAD
@@ -375,77 +213,52 @@ git status
 git log -1 --oneline
 ```
 
-Do not commit unrelated generated files, local databases, logs, or accidental
-shell-redirection artifacts.
+Windows CRLF warnings are not failures by themselves.
 
-Windows CRLF warnings from Git are not failures by themselves.
-
-## Change Discipline
-
-Prefer adding one coherent capability per checkpoint.
-
-Do not mix unrelated refactors into feature commits.
-
-Do not reformat large unrelated files.
-
-When changing an existing large file, make the smallest semantic change needed.
-
-Keep backward compatibility unless the phase explicitly changes a contract.
+Keep diffs narrow and do not mix unrelated refactors into feature commits.
 
 ## Current Scoring Architecture
 
-The intended scoring flow is:
-
 `ProfileAnalysisResult + AnalysisScoringPolicy`
+`-> privacy eligibility guard`
 `-> AnalysisScoringFeatureAdapter`
 `-> tuple[ScoringFeature, ...]`
 `-> WeightedScoringEngine`
 `-> ScoreResult`
-`-> SearchCandidate score + ScoreSnapshot audit record`
+`-> SearchCandidate score + ScoreSnapshot audit`
 
-Application scoring rules currently support:
-
-- fact-value criteria;
-- hypothesis-value criteria;
-- explicit education/institution relation criteria.
-
-Do not invent universal product weights. Weights belong to configured scoring
-policy.
+Current scoring rules may use fact-value criteria, hypothesis-value criteria,
+and explicit education/institution relation criteria, but only after confirmed
+private eligibility.
 
 ## Definition of Done for New Intelligence Features
 
-A permitted new intelligence feature is not complete merely because an
-extractor exists.
-
-When applicable, it should have a clear path:
+A permitted new intelligence feature should, where applicable, have a clear
+path:
 
 `evidence`
 `-> fact / signal / hypothesis`
-`-> scoring adapter/policy support`
+`-> scoring adapter/policy`
 `-> score contribution`
 `-> explanation / audit`
 
-Also include:
+But not every analytics feature belongs in ranking. Activity level, content
+topics/interests, and language are explicitly outside current core scoring
+scope.
 
-- unit tests;
-- application integration tests where relevant;
-- deterministic behavior;
-- source provenance;
-- confidence semantics;
-- scoring behavior if the feature is permitted for scoring.
+Include focused tests, deterministic behavior, provenance, and correct
+confidence semantics.
 
 ## Agent Behavior
 
-Before making substantial changes:
+Before substantial changes:
 
-1. inspect the current implementation;
+1. inspect current implementation;
 2. identify the owning layer;
-3. preserve existing semantic boundaries;
-4. write or update focused tests;
+3. preserve semantic boundaries;
+4. write/update focused tests;
 5. run the appropriate gate;
-6. inspect the diff before committing.
+6. inspect the diff before commit.
 
-If a requested change conflicts with these architectural rules, prefer the
-architecture and explain the tradeoff rather than silently introducing debt.
-
-Do not claim a gate is green unless the command was actually run and passed.
+If a requested change conflicts with these rules, preserve the architecture and
+surface the tradeoff instead of silently adding debt.

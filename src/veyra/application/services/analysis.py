@@ -54,7 +54,7 @@ from veyra.domain.validation import AdultAgeValidator, ValidationResult
 
 
 class ProfileAnalysisService:
-    """Analyze one immutable public profile snapshot."""
+    """Analyze one immutable profile snapshot."""
 
     def __init__(
         self,
@@ -287,6 +287,7 @@ class ProfileAnalysisService:
             hypotheses=hypotheses,
             validation=validation,
             education_institution_relations=education_institution_relations,
+            is_private=snapshot.is_private,
         )
 
     def _extract_birth_year_evidence(
