@@ -1,0 +1,111 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "veyra"
+version = "0.1.0"
+description = "A modular social profile discovery, validation, scoring, and snapshot intelligence engine."
+requires-python = ">=3.13"
+authors = [
+    { name = "Pouria Darandi" },
+]
+dependencies = []
+
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.18,<2",
+    "pytest>=9.1,<10",
+    "pytest-cov>=7,<8",
+    "ruff>=0.13,<1",
+]
+
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = [
+    "tests",
+]
+pythonpath = [
+    "src",
+]
+addopts = [
+    "-ra",
+    "--strict-config",
+    "--strict-markers",
+]
+
+
+[tool.coverage.run]
+branch = true
+source = [
+    "veyra",
+]
+
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = [
+    "src",
+    "tests",
+]
+
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+    "RUF",
+]
+ignore = []
+
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "veyra",
+]
+
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+pretty = true
+show_error_codes = true
+show_error_context = true
+warn_unused_configs = true
+files = [
+    "src",
+    "tests",
+]
