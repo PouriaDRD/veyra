@@ -3,6 +3,8 @@
 from datetime import date
 
 from veyra.domain.evidence import (
+    BirthYear,
+    CalendarSystem,
     Evidence,
     EvidenceSource,
     Fact,
@@ -25,20 +27,26 @@ def build_supported_birth_year(
     year: int,
     *,
     confidence: float = 0.9,
+    calendar: CalendarSystem = CalendarSystem.GREGORIAN,
 ) -> Fact:
     """Create supported birth-year fact."""
+
+    birth_year = BirthYear(
+        year=year,
+        calendar=calendar,
+    )
 
     evidence = Evidence(
         source=EvidenceSource.BIO,
         raw_value=str(year),
-        normalized_value=year,
+        normalized_value=birth_year,
         confidence=confidence,
     )
 
     return Fact(
         kind=FactKind.BIRTH_YEAR,
         status=FactStatus.SUPPORTED,
-        value=year,
+        value=birth_year,
         confidence=confidence,
         evidence=(evidence,),
     )
@@ -192,3 +200,29 @@ def test_validator_rejects_conflicting_age_evidence() -> None:
         ValidationCode.CONFLICTING_EVIDENCE,
         ValidationCode.AGE_UNCERTAIN,
     )
+
+
+def test_validator_handles_confident_solar_hijri_adult() -> None:
+    result = AdultAgeValidator().validate(
+        build_supported_birth_year(
+            1380,
+            calendar=CalendarSystem.SOLAR_HIJRI,
+        ),
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.is_accepted is True
+
+
+def test_validator_rejects_solar_hijri_minor() -> None:
+    result = AdultAgeValidator().validate(
+        build_supported_birth_year(
+            1395,
+            calendar=CalendarSystem.SOLAR_HIJRI,
+        ),
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.is_accepted is False
+
+    assert result.rejection_codes == (ValidationCode.POSSIBLE_MINOR,)

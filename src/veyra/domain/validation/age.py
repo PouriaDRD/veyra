@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import date
 
 from veyra.domain.evidence import (
+    BirthYear,
+    CalendarSystem,
     Fact,
     FactKind,
     FactStatus,
@@ -45,10 +47,6 @@ class AdultAgeValidator:
     Validate whether explicit age evidence establishes adulthood.
 
     Uncertain, conflicted, or insufficient evidence is rejected by default.
-
-    A birth year does not reveal the exact birthday. Therefore, when the
-    reference year minus birth year equals the configured minimum age,
-    adulthood remains uncertain.
     """
 
     def __init__(
@@ -103,18 +101,22 @@ class AdultAgeValidator:
                 message=("Age evidence confidence is below the required threshold."),
             )
 
-        value = self._require_integer_value(
-            fact,
-        )
-
         if fact.kind is FactKind.AGE:
+            age = self._require_exact_age(
+                fact,
+            )
+
             return self._validate_exact_age(
-                age=value,
+                age=age,
                 confidence=fact.confidence,
             )
 
+        birth_year = self._require_birth_year(
+            fact,
+        )
+
         return self._validate_birth_year(
-            birth_year=value,
+            birth_year=birth_year,
             confidence=fact.confidence,
             reference_date=reference_date,
         )
@@ -144,32 +146,38 @@ class AdultAgeValidator:
     def _validate_birth_year(
         self,
         *,
-        birth_year: int,
+        birth_year: BirthYear,
         confidence: float,
         reference_date: date,
     ) -> ValidationResult:
-        """
-        Validate a birth year conservatively.
+        """Validate a calendar-aware birth year conservatively."""
 
-        Without month/day information, a birth year represents an age range
-        of approximately one year.
-        """
+        if birth_year.calendar is CalendarSystem.GREGORIAN:
+            earliest_year = birth_year.year
+            latest_year = birth_year.year
 
-        if birth_year <= 0:
+        elif birth_year.calendar is CalendarSystem.SOLAR_HIJRI:
+            # A Solar Hijri year spans portions of two Gregorian years.
+            # We intentionally use a conservative range here rather than
+            # inventing an exact birthday.
+            earliest_year = birth_year.year + 621
+            latest_year = birth_year.year + 622
+
+        else:
             raise ValueError(
-                "Birth year must be greater than zero.",
+                "Unsupported birth-year calendar.",
             )
 
-        if birth_year > reference_date.year:
+        if earliest_year > reference_date.year:
             raise ValueError(
                 "Birth year cannot be in the future.",
             )
 
-        maximum_possible_age = reference_date.year - birth_year
+        maximum_possible_age = reference_date.year - earliest_year
 
         minimum_possible_age = max(
             0,
-            maximum_possible_age - 1,
+            reference_date.year - latest_year - 1,
         )
 
         if maximum_possible_age < self._policy.minimum_age:
@@ -191,10 +199,10 @@ class AdultAgeValidator:
         )
 
     @staticmethod
-    def _require_integer_value(
+    def _require_exact_age(
         fact: Fact,
     ) -> int:
-        """Return a supported integer age value."""
+        """Return a supported exact integer age."""
 
         value = fact.value
 
@@ -204,6 +212,24 @@ class AdultAgeValidator:
         ):
             raise ValueError(
                 "Age facts must resolve to an integer.",
+            )
+
+        return value
+
+    @staticmethod
+    def _require_birth_year(
+        fact: Fact,
+    ) -> BirthYear:
+        """Return a supported calendar-aware birth year."""
+
+        value = fact.value
+
+        if not isinstance(
+            value,
+            BirthYear,
+        ):
+            raise ValueError(
+                "Birth-year facts must resolve to BirthYear.",
             )
 
         return value

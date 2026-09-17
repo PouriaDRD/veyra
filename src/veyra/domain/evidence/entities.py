@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 from veyra.domain.common import ensure_utc_datetime, utc_now
 
+from .birth_year import BirthYear
 from .enums import (
     ConfidenceLevel,
     EvidenceSource,
@@ -13,7 +14,7 @@ from .enums import (
     FactStatus,
 )
 
-type FactValue = str | int | float | bool
+type FactValue = str | int | float | bool | BirthYear
 
 
 @dataclass(frozen=True, slots=True)
