@@ -10,6 +10,11 @@ from veyra.domain.evidence import (
     FactKind,
     FactStatus,
 )
+from veyra.domain.intelligence import (
+    HypothesisKind,
+    HypothesisStatus,
+    RelationshipStatus,
+)
 from veyra.domain.snapshots import ProfileSnapshot
 from veyra.domain.validation import ValidationCode
 
@@ -201,3 +206,264 @@ def test_analysis_combines_matching_username_and_bio_evidence() -> None:
     assert len(birth_year.evidence) == 2
 
     assert result.validation.is_accepted is True
+
+
+def test_analysis_extracts_english_relationship_fact() -> None:
+    snapshot = build_snapshot(
+        username="sara1997",
+        bio="Designer | Married 💍 | Tehran",
+    )
+
+    result = ProfileAnalysisService().analyze(
+        snapshot,
+        reference_date=REFERENCE_DATE,
+    )
+
+    relationship = result.fact_for(
+        FactKind.RELATIONSHIP_STATUS,
+    )
+
+    assert relationship is not None
+
+    assert relationship.status is FactStatus.SUPPORTED
+
+    assert relationship.value == RelationshipStatus.MARRIED.value
+
+    assert relationship.confidence == 0.98
+
+
+def test_analysis_extracts_persian_relationship_fact() -> None:
+    snapshot = build_snapshot(
+        username="sara1997",
+        bio="طراح گرافیک | تهران | مجرد",
+    )
+
+    result = ProfileAnalysisService().analyze(
+        snapshot,
+        reference_date=REFERENCE_DATE,
+    )
+
+    relationship = result.fact_for(
+        FactKind.RELATIONSHIP_STATUS,
+    )
+
+    assert relationship is not None
+
+    assert relationship.status is FactStatus.SUPPORTED
+
+    assert relationship.value == RelationshipStatus.SINGLE.value
+
+
+def test_analysis_builds_relationship_hypothesis_from_explicit_fact() -> None:
+    snapshot = build_snapshot(
+        username="sara1997",
+        bio="متاهل",
+    )
+
+    result = ProfileAnalysisService().analyze(
+        snapshot,
+        reference_date=REFERENCE_DATE,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.RELATIONSHIP_STATUS,
+    )
+
+    assert hypothesis is not None
+
+    assert hypothesis.best_value == RelationshipStatus.MARRIED.value
+
+    assert hypothesis.status is HypothesisStatus.STRONGLY_SUPPORTED
+
+
+def test_analysis_builds_contextual_relationship_observations() -> None:
+    snapshot = build_snapshot(
+        username="sara1997",
+        bio="Sara 💍 ❤️",
+    )
+
+    result = ProfileAnalysisService().analyze(
+        snapshot,
+        reference_date=REFERENCE_DATE,
+    )
+
+    relationship = result.fact_for(
+        FactKind.RELATIONSHIP_STATUS,
+    )
+
+    assert relationship is not None
+
+    assert relationship.status is FactStatus.UNKNOWN
+
+    assert result.observations
+
+    targets = {observation.target_value for observation in result.observations}
+
+    assert RelationshipStatus.MARRIED.value in targets
+
+    assert RelationshipStatus.ENGAGED.value in targets
+
+    assert RelationshipStatus.IN_RELATIONSHIP.value in targets
+
+    assert RelationshipStatus.SINGLE.value not in targets
+
+
+def test_analysis_does_not_convert_emoji_signal_into_explicit_fact() -> None:
+    snapshot = build_snapshot(
+        username="sara1997",
+        bio="علی ❤️",
+    )
+
+    result = ProfileAnalysisService().analyze(
+        snapshot,
+        reference_date=REFERENCE_DATE,
+    )
+
+    relationship = result.fact_for(
+        FactKind.RELATIONSHIP_STATUS,
+    )
+
+    assert relationship is not None
+
+    assert relationship.status is FactStatus.UNKNOWN
+
+    assert relationship.value is None
+
+
+def test_analysis_preserves_explicit_single_over_contextual_signal() -> None:
+    snapshot = build_snapshot(
+        username="sara1997",
+        bio="مجرد | Ali ❤️",
+    )
+
+    result = ProfileAnalysisService().analyze(
+        snapshot,
+        reference_date=REFERENCE_DATE,
+    )
+
+    relationship = result.fact_for(
+        FactKind.RELATIONSHIP_STATUS,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.RELATIONSHIP_STATUS,
+    )
+
+    assert relationship is not None
+    assert hypothesis is not None
+
+    assert relationship.value == RelationshipStatus.SINGLE.value
+
+    assert hypothesis.best_value == RelationshipStatus.SINGLE.value
+
+
+def test_analysis_supports_mixed_persian_english_relationship_data() -> None:
+    snapshot = build_snapshot(
+        username="sara1997",
+        bio="Graphic Designer | تهران | متاهل 💍",
+    )
+
+    result = ProfileAnalysisService().analyze(
+        snapshot,
+        reference_date=REFERENCE_DATE,
+    )
+
+    relationship = result.fact_for(
+        FactKind.RELATIONSHIP_STATUS,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.RELATIONSHIP_STATUS,
+    )
+
+    assert relationship is not None
+    assert hypothesis is not None
+
+    assert relationship.value == RelationshipStatus.MARRIED.value
+
+    assert hypothesis.best_value == RelationshipStatus.MARRIED.value
+
+
+def test_analysis_preserves_conflicting_relationship_claims() -> None:
+    snapshot = build_snapshot(
+        username="sara1997",
+        bio="Single | متاهل",
+    )
+
+    result = ProfileAnalysisService().analyze(
+        snapshot,
+        reference_date=REFERENCE_DATE,
+    )
+
+    relationship = result.fact_for(
+        FactKind.RELATIONSHIP_STATUS,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.RELATIONSHIP_STATUS,
+    )
+
+    assert relationship is not None
+    assert hypothesis is not None
+
+    assert relationship.status is FactStatus.CONFLICTED
+
+    assert hypothesis.status is HypothesisStatus.CONFLICTED
+
+
+def test_analysis_returns_unknown_relationship_without_evidence() -> None:
+    snapshot = build_snapshot(
+        username="sara1997",
+        bio="Designer from Tehran",
+    )
+
+    result = ProfileAnalysisService().analyze(
+        snapshot,
+        reference_date=REFERENCE_DATE,
+    )
+
+    relationship = result.fact_for(
+        FactKind.RELATIONSHIP_STATUS,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.RELATIONSHIP_STATUS,
+    )
+
+    assert relationship is not None
+    assert hypothesis is not None
+
+    assert relationship.status is FactStatus.UNKNOWN
+
+    assert hypothesis.status is HypothesisStatus.UNKNOWN
+
+    assert hypothesis.best_value == RelationshipStatus.UNKNOWN.value
+
+
+def test_persian_only_contextual_relationship_signal_remains_ambiguous() -> None:
+    snapshot = build_snapshot(
+        username="sara1997",
+        bio="علی 💍 ❤️",
+    )
+
+    result = ProfileAnalysisService().analyze(
+        snapshot,
+        reference_date=REFERENCE_DATE,
+    )
+
+    fact = result.fact_for(
+        FactKind.RELATIONSHIP_STATUS,
+    )
+
+    hypothesis = result.hypothesis_for(
+        HypothesisKind.RELATIONSHIP_STATUS,
+    )
+
+    assert fact is not None
+    assert hypothesis is not None
+
+    assert fact.status is FactStatus.UNKNOWN
+
+    assert hypothesis.status is HypothesisStatus.AMBIGUOUS
+
+    assert hypothesis.best_value == RelationshipStatus.UNKNOWN.value

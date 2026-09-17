@@ -56,6 +56,7 @@ class HypothesisStatus(StrEnum):
     POSSIBLE = "possible"
     PROBABLE = "probable"
     STRONGLY_SUPPORTED = "strongly_supported"
+    AMBIGUOUS = "ambiguous"
     CONFLICTED = "conflicted"
 
 
